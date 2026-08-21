@@ -1,0 +1,5 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/v237734/app.lmd2022.com/
+    - /bin/cp -R portal_web_lmd/. $DEPLOYPATH
