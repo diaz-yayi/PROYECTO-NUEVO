@@ -19,7 +19,12 @@ function ocultarSplashLoader() {
 }
 
 function inicializarAuth() {
-  const token = localStorage.getItem('lmd_jwt_token');
+  // El JWT real vive en una cookie httpOnly — JavaScript no puede leerla
+  // ni verificarla directamente. 'sesion_lmd_activa' es solo una bandera
+  // no sensible ("la última vez que iniciaste sesión, funcionó") para
+  // decidir qué pantalla mostrar de entrada; la validez real la confirma
+  // el servidor en la primera petición real (y si la cookie ya expiró,
+  // el interceptor de 401 en api.js redirige limpiamente al login).
   const sesionGuardada = localStorage.getItem('sesion_lmd_activa') === 'true';
   const profileRaw = localStorage.getItem('lmd_user_profile');
 
@@ -29,8 +34,7 @@ function inicializarAuth() {
     } catch(e) {}
   }
 
-  // Comprobar estrictamente que exista un token no vacío y sesión activa
-  if (token && token.trim().length > 10 && sesionGuardada) {
+  if (sesionGuardada) {
     state.sesionActiva = true;
     mostrarAppPrincipal();
   } else {
@@ -176,7 +180,7 @@ async function cargarDatosEnVivo(silencioso = true) {
   
   // 1. Si la pantalla está bloqueada por inactividad, la pestaña oculta/minimizada o sin sesión, abortar auto-sync
   const estaBloqueado = (typeof LockScreen !== 'undefined' && LockScreen.bloqueado) || Boolean(document.getElementById('modal-lock-screen')?.classList.contains('active'));
-  const sinSesion = !localStorage.getItem('lmd_jwt_token') || localStorage.getItem('sesion_lmd_activa') !== 'true';
+  const sinSesion = localStorage.getItem('sesion_lmd_activa') !== 'true';
 
   if (estaBloqueado || document.hidden || sinSesion) {
     if (btnSync) setBotonCargando(btnSync, false, null, '🔄 Sincronizar');

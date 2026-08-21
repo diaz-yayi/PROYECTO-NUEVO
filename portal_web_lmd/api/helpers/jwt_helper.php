@@ -71,6 +71,56 @@ class JWTHelper {
         return $payload;
     }
 
+    const COOKIE_NAME = 'lmd_jwt_token';
+
+    /**
+     * Detecta si la petición actual llega por HTTPS (necesario para no
+     * marcar la cookie como Secure en desarrollo local por HTTP).
+     */
+    private static function esHttps(): bool {
+        return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    }
+
+    /**
+     * Fija el JWT como cookie httpOnly — invisible para JavaScript,
+     * el navegador la envía solo automáticamente en cada petición.
+     */
+    public static function setTokenCookie(string $token): void {
+        setcookie(self::COOKIE_NAME, $token, [
+            'expires' => time() + JWT_EXPIRATION_SECONDS,
+            'path' => '/',
+            'secure' => self::esHttps(),
+            'httponly' => true,
+            'samesite' => 'Strict'
+        ]);
+    }
+
+    /**
+     * Borra la cookie de sesión (logout).
+     */
+    public static function clearTokenCookie(): void {
+        setcookie(self::COOKIE_NAME, '', [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'secure' => self::esHttps(),
+            'httponly' => true,
+            'samesite' => 'Strict'
+        ]);
+    }
+
+    /**
+     * Obtiene el token: prioriza la cookie httpOnly; conserva la lectura
+     * de la cabecera Authorization como respaldo (p. ej. para futuros
+     * consumidores de la API que no sean el propio navegador).
+     */
+    public static function getToken(): ?string {
+        if (!empty($_COOKIE[self::COOKIE_NAME])) {
+            return $_COOKIE[self::COOKIE_NAME];
+        }
+        return self::getBearerToken();
+    }
+
     /**
      * Extraer token de la cabecera Authorization (Bearer <token>)
      */

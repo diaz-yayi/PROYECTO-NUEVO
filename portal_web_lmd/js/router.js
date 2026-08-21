@@ -62,11 +62,13 @@ const Router = {
 
   handleRoute() {
     const hash = window.location.hash || '#/dashboard';
-    const token = localStorage.getItem('lmd_jwt_token');
+    // El JWT vive en cookie httpOnly (no legible desde JS); esta bandera
+    // no sensible indica si hay sesión — la validez real la confirma el
+    // servidor en la primera petición real.
     const sesionActiva = localStorage.getItem('sesion_lmd_activa') === 'true';
 
     // 1. Guardián de Autenticación: Si no hay sesión, forzar #/login
-    if (!token && !sesionActiva) {
+    if (!sesionActiva) {
       if (hash !== '#/login') {
         state.rutaPrevia = hash;
         window.location.hash = '#/login';

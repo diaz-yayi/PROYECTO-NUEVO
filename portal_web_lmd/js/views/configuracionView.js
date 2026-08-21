@@ -34,9 +34,9 @@ function actualizarUIModoPrueba() {
   if (txtModoPrueba) txtModoPrueba.innerText = esPrueba ? 'Simulacro Activo (Prueba)' : 'Producción Real';
 
   // 3. Email de pruebas destino
-  const emailDestino = (state.configSistema && state.configSistema.EMAIL_PRUEBA) 
-    || (document.getElementById('cfg-email-prueba') ? document.getElementById('cfg-email-prueba').value.trim() : '') 
-    || 'tu email de prueba';
+  const emailDestino = escapeHTML((state.configSistema && state.configSistema.EMAIL_PRUEBA)
+    || (document.getElementById('cfg-email-prueba') ? document.getElementById('cfg-email-prueba').value.trim() : '')
+    || 'tu email de prueba');
 
   // 4. Banners Reactivos de Modales de Automatizaciones
   const bannerVenc = document.getElementById('banner-modo-vencimientos');

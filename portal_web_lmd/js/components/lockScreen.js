@@ -39,8 +39,11 @@ const LockScreen = {
   },
 
   verificarInactividad() {
-    const token = localStorage.getItem('lmd_jwt_token');
-    if (!token) return;
+    // El JWT real vive en cookie httpOnly (no legible desde JS); la
+    // bandera no sensible 'sesion_lmd_activa' es la que indica si hay
+    // sesión para evaluar el bloqueo por inactividad.
+    const haySesion = localStorage.getItem('sesion_lmd_activa') === 'true';
+    if (!haySesion) return;
 
     const ultimaActividad = parseInt(localStorage.getItem('lmd_ultima_actividad') || Date.now().toString(), 10);
     const inactivoMs = Date.now() - ultimaActividad;
@@ -136,10 +139,12 @@ const LockScreen = {
 
   cerrarSesionExpirada() {
     this.bloqueado = false;
-    localStorage.removeItem('lmd_jwt_token');
+    if (typeof API !== 'undefined' && API.request) {
+      API.request('auth/logout.php', { method: 'POST' }).catch(() => {});
+    }
     localStorage.removeItem('sesion_lmd_activa');
     localStorage.removeItem('lmd_ultima_actividad');
-    
+
     const modal = document.getElementById('modal-lock-screen');
     if (modal) modal.classList.remove('active');
 

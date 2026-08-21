@@ -8,12 +8,12 @@ require_once __DIR__ . '/../helpers/jwt_helper.php';
 function requireAuth(): array {
     header('Content-Type: application/json; charset=utf-8');
 
-    $token = JWTHelper::getBearerToken();
+    $token = JWTHelper::getToken();
     if (!$token) {
         http_response_code(401);
         echo json_encode([
             'success' => false,
-            'error' => 'No autorizado. Se requiere token de sesión Bearer.'
+            'error' => 'No autorizado. Se requiere sesión iniciada.'
         ]);
         exit;
     }

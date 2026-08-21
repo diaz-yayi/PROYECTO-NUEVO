@@ -6,14 +6,12 @@ const API = {
   BASE_URL: 'api',
 
   getHeaders() {
-    const token = localStorage.getItem('lmd_jwt_token');
-    const headers = {
+    // La sesión viaja en una cookie httpOnly gestionada automáticamente
+    // por el navegador (ver credentials: 'same-origin' en request()) —
+    // ya no se adjunta ningún token manualmente desde JavaScript.
+    return {
       'Content-Type': 'application/json'
     };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    return headers;
   },
 
   async request(endpoint, options = {}) {
@@ -21,14 +19,14 @@ const API = {
       ...this.getHeaders(),
       ...(options.headers || {})
     };
+    options.credentials = 'same-origin';
 
     const isLocalDev = Boolean(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
     try {
       const response = await fetch(`${this.BASE_URL}/${endpoint}`, options);
-      
+
       if (response.status === 401) {
-        localStorage.removeItem('lmd_jwt_token');
         localStorage.removeItem('sesion_lmd_activa');
         if (typeof Router !== 'undefined') {
           Router.navigateToHash('#/login');
@@ -229,8 +227,11 @@ const API = {
       method: 'POST',
       body: JSON.stringify({ email, password })
     });
-    if (res.success && res.token) {
-      localStorage.setItem('lmd_jwt_token', res.token);
+    if (res.success) {
+      // El token ya no llega en el body: el servidor lo fija como cookie
+      // httpOnly. Solo guardamos una bandera no sensible ("hay sesión")
+      // para que la UI (pantalla de login vs app, bloqueo por inactividad)
+      // sepa qué mostrar sin poder leer nunca la cookie real.
       localStorage.setItem('sesion_lmd_activa', 'true');
       if (res.user) {
         localStorage.setItem('lmd_user_profile', JSON.stringify(res.user));
@@ -245,7 +246,9 @@ const API = {
   },
 
   async logout() {
-    localStorage.removeItem('lmd_jwt_token');
+    try {
+      await this.request('auth/logout.php', { method: 'POST' });
+    } catch (e) {}
     localStorage.removeItem('sesion_lmd_activa');
     localStorage.removeItem('lmd_user_profile');
     state.usuarioActual = null;
