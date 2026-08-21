@@ -91,7 +91,7 @@ function actualizarUIUsuarioActual() {
     if (navLogs) navLogs.style.display = 'none';
     if (btnNuevoExp) btnNuevoExp.style.display = 'none';
   } else if (rol === 'operador') {
-    if (navAutomatizaciones) navAutomatizaciones.style.display = 'none';
+    if (navAutomatizaciones) navAutomatizaciones.style.display = 'flex';
     if (navConfiguracion) navConfiguracion.style.display = 'none';
     if (navLogs) navLogs.style.display = 'none';
     if (btnNuevoExp) btnNuevoExp.style.display = 'inline-flex';
@@ -101,6 +101,52 @@ function actualizarUIUsuarioActual() {
     if (navLogs) navLogs.style.display = 'flex';
     if (btnNuevoExp) btnNuevoExp.style.display = 'inline-flex';
   }
+
+  actualizarVisibilidadCategoriasNav();
+}
+
+// Oculta un encabezado de categoría del menú (.nav-category-header) si,
+// tras aplicar las reglas de rol de arriba, ninguno de los ítems que
+// agrupa quedó visible. No conoce roles directamente — se auto-ajusta
+// ante cualquier cambio futuro en qué ve cada rol, sin mantenimiento.
+function actualizarVisibilidadCategoriasNav() {
+  document.querySelectorAll('.nav-category-header').forEach(header => {
+    let sibling = header.nextElementSibling;
+    let hayVisible = false;
+    while (sibling && !sibling.classList.contains('nav-category-header')) {
+      if (sibling.classList.contains('nav-item') && getComputedStyle(sibling).display !== 'none') {
+        hayVisible = true;
+        break;
+      }
+      sibling = sibling.nextElementSibling;
+    }
+    header.style.display = hayVisible ? '' : 'none';
+  });
+}
+
+// ─────────────────────────────────────────────
+// BLINDAJE VISUAL RBAC: modo solo lectura en modales editables
+// El consultor puede ver expedientes/citas pero nunca editarlos —
+// esto solo evita una experiencia confusa (campo editable que el
+// backend rechazaría); la protección real está en requireRole().
+// ─────────────────────────────────────────────
+function aplicarModoSoloLectura(formId, btnGuardarId) {
+  const rol = (state.usuarioActual && state.usuarioActual.rol) || 'consultor';
+  const soloLectura = rol === 'consultor';
+
+  const form = document.getElementById(formId);
+  if (form) {
+    form.querySelectorAll('input, select, textarea').forEach(el => {
+      el.disabled = soloLectura;
+    });
+  }
+
+  const btnGuardar = document.getElementById(btnGuardarId);
+  if (btnGuardar) {
+    btnGuardar.style.display = soloLectura ? 'none' : '';
+  }
+
+  return soloLectura;
 }
 
 // ─────────────────────────────────────────────

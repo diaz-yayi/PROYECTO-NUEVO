@@ -311,6 +311,14 @@ function abrirModalExpediente(id) {
   actualizarTarjetaVerificacionExpediente(candidato);
 
   tomarSnapshotExpediente();
+
+  const soloLectura = (typeof aplicarModoSoloLectura === 'function')
+    ? aplicarModoSoloLectura('form-expediente', 'btn-guardar-exp')
+    : false;
+  if (soloLectura) {
+    document.getElementById('modal-exp-titulo').innerText += ' (Solo lectura)';
+  }
+
   document.getElementById('modal-expediente-general').classList.add('active');
 }
 

@@ -16,8 +16,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once __DIR__ . '/middleware/auth_guard.php';
 require_once __DIR__ . '/helpers/gas_gateway.php';
 
-// Validar JWT
-$userData = requireAuth();
+// Validar JWT y rol (admin y operador)
+$userData = requireRole(['admin', 'operador']);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);

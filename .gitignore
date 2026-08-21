@@ -33,3 +33,6 @@ _verificar_*_temporal.php
 # --- Archivos de sistema operativo ---
 .DS_Store
 Thumbs.db
+
+# --- Artefactos de pruebas locales (Playwright MCP) ---
+.playwright-mcp/

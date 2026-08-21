@@ -91,6 +91,14 @@ function abrirModalRadarCitas(id) {
   document.getElementById('citas-fecha-asignada').value = candidato.fechaCita || '';
 
   tomarSnapshotCitas();
+
+  const soloLectura = (typeof aplicarModoSoloLectura === 'function')
+    ? aplicarModoSoloLectura('form-citas', 'btn-guardar-citas')
+    : false;
+  if (soloLectura) {
+    document.getElementById('modal-citas-titulo').innerText += ' (Solo lectura)';
+  }
+
   document.getElementById('modal-citas-radar').classList.add('active');
 }
 

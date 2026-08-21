@@ -16,8 +16,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once __DIR__ . '/../middleware/auth_guard.php';
 require_once __DIR__ . '/../helpers/gas_gateway.php';
 
-// Validar que el usuario esté autenticado (admin o consultor)
-$user = requireRole(['admin', 'consultor']);
+// Validar que el usuario esté autenticado (lectura para los 3 roles)
+$user = requireRole(['admin', 'operador', 'consultor']);
 
 $result = GASGateway::callGAS([
     'accion' => 'obtener_verificacion_habana'

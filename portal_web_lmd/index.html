@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Portal EM — Plataforma de Automatización</title>
   <meta name="description" content="Plataforma de Automatización Consular EM — Gestión Integral de Expedientes, Analítica y Citas LMD">
-  <link rel="stylesheet" href="css/styles.css?v=6.5.8">
+  <link rel="stylesheet" href="css/styles.css?v=6.5.9">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏛️</text></svg>">
   <!-- Chart.js para Gráficos Interactivos de Élite -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -404,7 +404,7 @@
               <h2 class="module-title">Expedientes LMD</h2>
               <div class="module-subtitle">Listado general de trámites consulares en curso</div>
             </div>
-            <button class="btn btn-primary" onclick="abrirModalNuevo()">
+            <button id="btn-nuevo-expediente" class="btn btn-primary" onclick="abrirModalNuevo()">
               ➕ Nuevo Expediente
             </button>
           </div>
@@ -1693,30 +1693,30 @@
   <!-- ─────────────────────────────────────────────
        SCRIPTS Y ARQUITECTURA MODULAR (SPA POR RUTAS)
   ───────────────────────────────────────────── -->
-  <script src="config.js?v=6.5.8"></script>
-  <script src="js/state.js?v=6.5.8"></script>
-  <script src="js/api.js?v=6.5.8"></script>
-  <script src="js/router.js?v=6.5.8"></script>
+  <script src="config.js?v=6.5.9"></script>
+  <script src="js/state.js?v=6.5.9"></script>
+  <script src="js/api.js?v=6.5.9"></script>
+  <script src="js/router.js?v=6.5.9"></script>
   
   <!-- Componentes Compartidos -->
-  <script src="js/components/toast.js?v=6.5.8"></script>
-  <script src="js/components/lockScreen.js?v=6.5.8"></script>
-  <script src="js/components/confirmModal.js?v=6.5.8"></script>
-  <script src="js/components/modalExpediente.js?v=6.5.8"></script>
-  <script src="js/components/modalAutomatizaciones.js?v=6.5.8"></script>
+  <script src="js/components/toast.js?v=6.5.9"></script>
+  <script src="js/components/lockScreen.js?v=6.5.9"></script>
+  <script src="js/components/confirmModal.js?v=6.5.9"></script>
+  <script src="js/components/modalExpediente.js?v=6.5.9"></script>
+  <script src="js/components/modalAutomatizaciones.js?v=6.5.9"></script>
 
   <!-- Vistas de la Aplicación -->
-  <script src="js/views/loginView.js?v=6.5.8"></script>
-  <script src="js/views/dashboardView.js?v=6.5.8"></script>
-  <script src="js/views/expedientesView.js?v=6.5.8"></script>
-  <script src="js/views/habanaView.js?v=6.5.8"></script>
-  <script src="js/views/rccView.js?v=6.5.8"></script>
-  <script src="js/views/citasView.js?v=6.5.8"></script>
-  <script src="js/views/automatizacionesView.js?v=6.5.8"></script>
-  <script src="js/views/configuracionView.js?v=6.5.8"></script>
-  <script src="js/views/logsView.js?v=6.5.8"></script>
+  <script src="js/views/loginView.js?v=6.5.9"></script>
+  <script src="js/views/dashboardView.js?v=6.5.9"></script>
+  <script src="js/views/expedientesView.js?v=6.5.9"></script>
+  <script src="js/views/habanaView.js?v=6.5.9"></script>
+  <script src="js/views/rccView.js?v=6.5.9"></script>
+  <script src="js/views/citasView.js?v=6.5.9"></script>
+  <script src="js/views/automatizacionesView.js?v=6.5.9"></script>
+  <script src="js/views/configuracionView.js?v=6.5.9"></script>
+  <script src="js/views/logsView.js?v=6.5.9"></script>
 
   <!-- Entrada Principal y Bootstrap -->
-  <script src="js/main.js?v=6.5.8"></script>
+  <script src="js/main.js?v=6.5.9"></script>
 </body>
 </html>

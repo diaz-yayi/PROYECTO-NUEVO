@@ -67,6 +67,12 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    if (!in_array($userData['rol'] ?? '', ['admin', 'operador'], true)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Acceso denegado. Tu nivel de acceso no tiene permisos para esta acción.']);
+        exit;
+    }
+
     $input = json_decode(file_get_contents('php://input'), true);
     $accion = $input['accion'] ?? 'guardar_expediente_general';
     $datos = $input['datos'] ?? $input;
