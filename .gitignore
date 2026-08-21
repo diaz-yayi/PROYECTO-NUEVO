@@ -1,0 +1,35 @@
+# --- Entornos y dependencias ---
+rcc_robot/venv/
+**/__pycache__/
+*.pyc
+
+# --- Perfiles de navegador Chrome (contienen credenciales de sesión, cookies, historial) ---
+rcc_robot/perfil_chrome/
+rcc_robot/perfil_chrome_citas/
+rcc_robot/perfil_chrome_visados/
+perfil_chrome_citas/
+
+# --- Capturas de depuración de los robots ---
+rcc_robot/*.png
+
+# --- Datos reales de clientes (PII) ---
+*.xlsx
+
+# --- Empaquetado manual (desincronizado de la fuente) ---
+portal_web_lmd.zip
+
+# --- Configuración local / secretos ---
+.env
+.env.local
+.env.*.local
+portal_web_lmd/config.secrets.php
+
+# --- Scripts de diagnóstico temporal (nunca deben versionarse) ---
+_verificar_*_temporal.php
+
+# --- Logs ---
+*.log
+
+# --- Archivos de sistema operativo ---
+.DS_Store
+Thumbs.db

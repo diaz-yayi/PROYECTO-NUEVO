@@ -1,0 +1,28 @@
+// ==========================================
+// MÓDULO 99: UTILIDADES Y MANTENIMIENTO
+// ==========================================
+// Este archivo contiene funciones de uso único o herramientas de administrador.
+// No interfiere con el motor principal del sistema.
+
+function inyectarFechasIniciales() {
+  // 1. Abrimos la Bóveda del Documento (la misma que usa el sistema)
+  const props = PropertiesService.getDocumentProperties();
+  
+  // 2. Definimos las fechas iniciales
+  // ✏️ EDITA ESTAS DOS FECHAS ANTES DE EJECUTAR EL SCRIPT
+  const fechaHabana = "05/11/2024"; 
+  const fechaMiami = "27/06/2025";
+  
+  // 3. Inyectamos los datos en la bóveda
+  props.setProperty('TERMOMETRO_HABANA', fechaHabana);
+  props.setProperty('TERMOMETRO_MIAMI', fechaMiami);
+  
+  // 4. Confirmación visual por consola y pantalla (si se ejecuta desde el Excel)
+  console.log(`✅ ÉXITO: Habana fijada en ${fechaHabana} y Miami fijada en ${fechaMiami}`);
+  
+  try {
+    SpreadsheetApp.getUi().alert(`✅ Bóveda Actualizada\n\nLa Habana: ${fechaHabana}\nMiami: ${fechaMiami}\n\nYa puedes revisar tu Termómetro Consular.`);
+  } catch (e) {
+    // Si se ejecuta desde el editor, el UI no está disponible, pero la consola sí.
+  }
+}

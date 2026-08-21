@@ -1,0 +1,1722 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal EM — Plataforma de Automatización</title>
+  <meta name="description" content="Plataforma de Automatización Consular EM — Gestión Integral de Expedientes, Analítica y Citas LMD">
+  <link rel="stylesheet" href="css/styles.css?v=6.5.8">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏛️</text></svg>">
+  <!-- Chart.js para Gráficos Interactivos de Élite -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    window.cambiarSeccion = function(viewId) {
+      if (window.Router && typeof window.Router.navigateToView === 'function') {
+        window.Router.navigateToView(viewId);
+      } else {
+        const routeMap = {
+          'view-dashboard': '#/dashboard',
+          'view-expedientes': '#/expedientes',
+          'view-citas': '#/citas',
+          'view-automatizaciones': '#/automatizaciones',
+          'view-configuracion': '#/configuracion',
+          'view-logs': '#/logs'
+        };
+        window.location.hash = routeMap[viewId] || '#/dashboard';
+      }
+    };
+
+    window.cerrarSesion = function() {
+      if (confirm('¿Deseas cerrar tu sesión del portal?')) {
+        if (typeof API !== 'undefined' && typeof API.logout === 'function') {
+          API.logout();
+        } else {
+          localStorage.removeItem('lmd_jwt_token');
+          localStorage.removeItem('sesion_lmd_activa');
+          window.location.hash = '#/login';
+        }
+      }
+    };
+  </script>
+</head>
+<body>
+
+  <!-- =============================================================================
+       PANTALLA DE CARGA Y SPLASH LOADER POST-LOGIN (FLUID TRANSITION)
+  ============================================================================= -->
+  <div id="app-loading-screen" class="app-loading-screen">
+    <div class="loading-content-box">
+      <div class="loading-spinner-container">
+        <div class="loading-spinner-ring"></div>
+        <div class="loading-spinner-inner-ring"></div>
+        <div class="loading-emblem-center">🏛️</div>
+      </div>
+      <div class="loading-brand-title">Portal EM • Centro de mando</div>
+      <div id="loading-status-badge" class="loading-status-badge">
+        <span class="spinner-icon" style="width: 14px; height: 14px; border-width: 2px;"></span>
+        <span id="loading-status-text">Iniciando sesión segura...</span>
+      </div>
+      <div id="loading-substatus-text" class="loading-substatus">Sincronizando Workspace con Google Sheets</div>
+    </div>
+  </div>
+
+  <!-- =============================================================================
+       PANTALLA DE LOGIN SEGURO (RUTA #/login) — IDENTIDAD OFICIAL EM
+  ============================================================================= -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <div class="mac-dots" style="justify-content: center; margin-bottom: 16px;">
+        <div class="mac-dot red"></div>
+        <div class="mac-dot yellow"></div>
+        <div class="mac-dot green"></div>
+      </div>
+      
+      <!-- Logo y Encabezado de Marca -->
+      <div class="login-brand-wrapper">
+        <div class="brand-logo-icon" style="margin: 0 auto 12px auto; width: 56px; height: 56px; font-size: 1.8rem; background: linear-gradient(135deg, rgba(212,175,55,0.2), rgba(34,211,238,0.2)); border: 1px solid rgba(212,175,55,0.4); border-radius: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(0,0,0,0.4);">🏛️</div>
+        <h1 class="login-title">Portal de acceso</h1>
+        <div class="login-subtitle">Centro de mando</div>
+        <div class="login-security-badge">
+          <span>🔒</span> Plataforma de Automatización
+        </div>
+      </div>
+      
+      <!-- Formulario de Acceso por Email + Contraseña -->
+      <form id="login-form">
+        <div class="login-form-group">
+          <label class="login-form-label" for="login-email">Usuario / Correo Electrónico</label>
+          <div class="login-input-wrapper">
+            <span class="login-input-icon">✉️</span>
+            <input type="email" 
+                   id="login-email" 
+                   class="login-input-field" 
+                   placeholder="ejemplo@estelamarina.com" 
+                   required 
+                   autocomplete="username">
+          </div>
+        </div>
+
+        <div class="login-form-group">
+          <label class="login-form-label" for="login-password">Contraseña de Seguridad</label>
+          <div class="login-input-wrapper">
+            <span class="login-input-icon">🔐</span>
+            <input type="password" 
+                   id="login-password" 
+                   class="login-input-field" 
+                   placeholder="••••••••••••" 
+                   required 
+                   autocomplete="current-password">
+            <button type="button" 
+                    id="btn-toggle-password" 
+                    class="login-toggle-eye" 
+                    onclick="toggleLoginPasswordVisibility()" 
+                    title="Mostrar / Ocultar Contraseña">
+              👁️
+            </button>
+          </div>
+        </div>
+        
+        <button type="submit" id="btn-login-submit" class="login-submit-btn">
+          <span>Ingresar al Portal Seguro</span>
+          <span style="font-size: 1.1rem; transition: transform 0.2s ease;">➔</span>
+        </button>
+      </form>
+
+      <div class="login-footer-text">
+        © 2026 EM • Plataforma de Automatización
+      </div>
+    </div>
+  </div>
+
+  <!-- =============================================================================
+       LAYOUT PRINCIPAL (SIDEBAR MAC STYLE + ÁREA CENTRAL)
+  ============================================================================= -->
+  <div id="app-layout" class="app-layout" style="display: none;">
+    
+    <!-- BARRA LATERAL (SIDEBAR) -->
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <!-- Botones Mac -->
+        <div class="mac-dots">
+          <div class="mac-dot red"></div>
+          <div class="mac-dot yellow"></div>
+          <div class="mac-dot green"></div>
+        </div>
+
+        <!-- Marca -->
+        <div class="brand-header">
+          <div class="brand-logo-icon">🏛️</div>
+          <div>
+            <div class="brand-title">Portal <span>EM</span></div>
+            <div style="font-size: 0.72rem; color: var(--text-dim);">Plataforma de Automatización</div>
+          </div>
+        </div>
+
+        <!-- Menú de Navegación Organizado por Categorías -->
+        <nav class="nav-menu">
+          <!-- Bloque 1: Gestión General -->
+          <div class="nav-category-header">📊 Gestión General</div>
+          <a class="nav-item active" data-view="view-dashboard" onclick="cambiarSeccion('view-dashboard')">
+            <span class="nav-item-icon">📊</span>
+            <span>Dashboard General</span>
+          </a>
+          <a class="nav-item" data-view="view-expedientes" onclick="cambiarSeccion('view-expedientes')">
+            <span class="nav-item-icon">📁</span>
+            <span>Expedientes LMD</span>
+          </a>
+
+          <!-- Bloque 2: Seguimiento & Radar -->
+          <div class="nav-category-header">🛰️ Seguimiento & Radar</div>
+          <a class="nav-item" data-view="view-habana" onclick="cambiarSeccion('view-habana')">
+            <span class="nav-item-icon">🇨🇺</span>
+            <span>Seguimiento La Habana</span>
+          </a>
+          <a class="nav-item" data-view="view-rcc" onclick="cambiarSeccion('view-rcc')">
+            <span class="nav-item-icon">🇪🇸</span>
+            <span>Seguimiento RCC</span>
+          </a>
+          <a class="nav-item" data-view="view-citas" onclick="cambiarSeccion('view-citas')">
+            <span class="nav-item-icon">🔑</span>
+            <span>Radar de Citas</span>
+          </a>
+
+          <!-- Bloque 3: Operaciones & Control -->
+          <div class="nav-category-header">⚡ Operaciones & Control</div>
+          <a class="nav-item" data-view="view-automatizaciones" onclick="cambiarSeccion('view-automatizaciones')">
+            <span class="nav-item-icon">⚡</span>
+            <span>Automatizaciones</span>
+          </a>
+          <a class="nav-item" data-view="view-configuracion" onclick="cambiarSeccion('view-configuracion')">
+            <span class="nav-item-icon">⚙️</span>
+            <span>Configuración</span>
+          </a>
+          <a class="nav-item admin-only" id="nav-logs" data-view="view-logs" onclick="cambiarSeccion('view-logs')">
+            <span class="nav-item-icon">🛡️</span>
+            <span>Auditoría & Logs</span>
+          </a>
+        </nav>
+      </div>
+
+      <!-- Pie de Sidebar -->
+      <div class="sidebar-bottom">
+        <a class="nav-item" onclick="cerrarSesion()" style="color: var(--accent-red);">
+          <span class="nav-item-icon">🚪</span>
+          <span>Cerrar Sesión</span>
+        </a>
+      </div>
+    </aside>
+
+    <!-- CONTENEDOR CENTRAL PRINCIPAL -->
+    <main class="main-wrapper">
+      
+      <!-- BARRA SUPERIOR (TOP BAR) -->
+      <header class="top-bar">
+        <div class="search-container" title="🔍 Búsqueda Universal: ID (ej: I116), Nombre Completo, Nº Expediente, Consulado, Correo Personal o Correo Creado">
+          <span class="search-icon-top">🔍</span>
+          <input type="text" id="global-search-input" class="search-input-top" placeholder="Buscar por ID, nombre, expediente, email..." title="🔍 Búsqueda Universal: ID (ej: I116), Nombre Completo, Nº Expediente, Consulado, Correo Personal o Correo Creado">
+        </div>
+
+        <div class="top-actions">
+          <!-- Switch de Modo Prueba / Producción en Vivo -->
+          <button id="btn-switch-modo" class="modo-badge-btn prueba" onclick="conmutarModoPruebaWeb()" title="Clic para alternar entre Modo Prueba y Producción Real">
+            🟡 Modo: PRUEBA
+          </button>
+
+          <button id="btn-sync-top" class="btn btn-secondary" onclick="cargarDatosEnVivo()" style="padding: 8px 14px; font-size: 0.82rem;">
+            🔄 Sincronizar
+          </button>
+
+          <div class="user-profile">
+            <div class="user-avatar">AD</div>
+            <div style="font-size: 0.84rem; font-weight: 600;">Admin LMD</div>
+          </div>
+        </div>
+      </header>
+
+      <!-- =======================================================================
+           VISTA 1: 📊 DASHBOARD EJECUTIVO Y KPIS (Estilo Nickelfox)
+      ======================================================================= -->
+      <section id="view-dashboard" class="view-section active">
+        
+        <div class="dashboard-grid">
+          
+          <!-- COLUMNA IZQUIERDA (2fr) -->
+          <div class="dashboard-left-col">
+            
+            <!-- Bloque Today's Summary (4 KPI Cards) -->
+            <div class="dash-box">
+              <div class="dash-box-header">
+                <div>
+                  <h2 class="dash-box-title">Resumen de Expedientes LMD</h2>
+                  <div style="font-size: 0.8rem; color: var(--text-dim);">Estado global de la cartera consular</div>
+                </div>
+              </div>
+
+              <div class="kpi-cards-grid">
+                <div class="kpi-card">
+                  <div class="kpi-icon-box cyan">📁</div>
+                  <div class="kpi-value" id="kpi-total">0</div>
+                  <div class="kpi-label">Total Expedientes</div>
+                  <div class="kpi-sub">Cartera activa</div>
+                </div>
+
+                <div class="kpi-card">
+                  <div class="kpi-icon-box gold">⏳</div>
+                  <div class="kpi-value" id="kpi-resolucion" style="color: var(--accent-gold);">0</div>
+                  <div class="kpi-label">En Resolución</div>
+                  <div class="kpi-sub">En trámite consular</div>
+                </div>
+
+                <div class="kpi-card">
+                  <div class="kpi-icon-box purple">🔑</div>
+                  <div class="kpi-value" id="kpi-citas" style="color: var(--accent-purple);">0</div>
+                  <div class="kpi-label">Cola Citas / Radar</div>
+                  <div class="kpi-sub">Pendientes de cita</div>
+                </div>
+
+                <div class="kpi-card">
+                  <div class="kpi-icon-box green">🎉</div>
+                  <div class="kpi-value" id="kpi-favorables" style="color: var(--accent-green);">0</div>
+                  <div class="kpi-label">Resueltos Favorables</div>
+                  <div class="kpi-sub">Concedidos con éxito</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tabla Ranking: Top Sedes Consulares -->
+            <div class="dash-box">
+              <div class="dash-box-header">
+                <div>
+                  <h3 class="dash-box-title">Top Sedes Consulares</h3>
+                  <div style="font-size: 0.78rem; color: var(--text-dim);">Distribución por volumen y cuota de casos</div>
+                </div>
+              </div>
+
+              <table class="rank-table">
+                <thead>
+                  <tr style="color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase;">
+                    <th style="padding: 6px; width: 40px;">#</th>
+                    <th style="padding: 6px;">Consulado / Sede</th>
+                    <th style="padding: 6px; width: 180px;">Cuota</th>
+                    <th style="padding: 6px; width: 80px; text-align: right;">Expedientes</th>
+                  </tr>
+                </thead>
+                <tbody id="rank-consulados-body">
+                  <!-- Inyectado dinámicamente -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Gráfico Grande: Flujo y Conversión LMD -->
+            <div class="dash-box">
+              <div class="dash-box-header">
+                <div>
+                  <h3 class="dash-box-title">Embudo de Fases del Trámite Consular</h3>
+                  <div style="font-size: 0.78rem; color: var(--text-dim);">Evolución de casos: Credenciales ➔ Cita ➔ Resolución ➔ Concesión</div>
+                </div>
+              </div>
+              <div style="height: 220px; position: relative;">
+                <canvas id="chart-funnel-lmd"></canvas>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- COLUMNA DERECHA (1fr) -->
+          <div class="dashboard-right-col">
+            
+            <!-- Gráfico Barras: Nivel por Sedes Principales -->
+            <div class="dash-box">
+              <div class="dash-box-header">
+                <h3 class="dash-box-title">Volumen por Sedes</h3>
+              </div>
+              <div style="height: 180px; position: relative;">
+                <canvas id="chart-bar-sedes"></canvas>
+              </div>
+            </div>
+
+            <!-- Gráfico Líneas: Resoluciones Favorables vs Recursos por Año -->
+            <div class="dash-box">
+              <div class="dash-box-header">
+                <div>
+                  <h3 class="dash-box-title">Efectividad de Resoluciones</h3>
+                  <div style="font-size: 0.78rem; color: var(--text-dim);">Evolución de Casos Favorables vs Recursos por Año</div>
+                </div>
+              </div>
+              <div style="height: 170px; position: relative;">
+                <canvas id="chart-line-efectividad"></canvas>
+              </div>
+            </div>
+
+            <!-- Panel Dual de Efectividad & Termómetros Consulares -->
+            <div class="dash-box">
+              <div class="dash-box-header">
+                <div>
+                  <h3 class="dash-box-title">Efectividad y Tasas de Concesión</h3>
+                  <div style="font-size: 0.78rem; color: var(--text-dim);">Rendimiento jurídico por vía ordinaria y recursos</div>
+                </div>
+              </div>
+
+              <!-- Panel Dual de Efectividad -->
+              <div class="efectividad-dual-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
+                <!-- Vía Directa (1ª Instancia) -->
+                <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); padding: 12px; text-align: center;">
+                  <div style="font-size: 0.70rem; color: #94A3B8; text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;">🏛️ 1ª Instancia (Directa)</div>
+                  <div id="tasa-directa-val" style="font-size: 1.5rem; font-weight: 800; color: var(--accent-green); margin: 4px 0 2px;">--%</div>
+                  <div id="tasa-directa-sub" style="font-size: 0.70rem; color: var(--text-dim);">Cargando...</div>
+                </div>
+
+                <!-- Vía Recursos (Alzada) -->
+                <div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: var(--radius-md); padding: 12px; text-align: center;">
+                  <div style="font-size: 0.70rem; color: #94A3B8; text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;">⚖️ Vía Recursos (Alzada)</div>
+                  <div id="tasa-recursos-val" style="font-size: 1.5rem; font-weight: 800; color: var(--accent-purple); margin: 4px 0 2px;">--%</div>
+                  <div id="tasa-recursos-sub" style="font-size: 0.70rem; color: var(--text-dim);">Cargando...</div>
+                </div>
+              </div>
+
+              <div class="termometro-grid">
+                <div class="term-mini-card gold">
+                  <div style="font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">🌡️ Termómetro Habana</div>
+                  <div id="term-habana-val" style="font-size: 0.88rem; font-weight: 700; color: var(--accent-gold); margin-top: 4px;">Cargando...</div>
+                </div>
+
+                <div class="term-mini-card cyan">
+                  <div style="font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">🌡️ Termómetro Miami</div>
+                  <div id="term-miami-val" style="font-size: 0.88rem; font-weight: 700; color: var(--accent-cyan); margin-top: 4px;">Cargando...</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- =======================================================================
+           VISTA 2: 📁 TODOS LOS EXPEDIENTES (Tabla Interactiva + Paginador)
+      ======================================================================= -->
+      <section id="view-expedientes" class="view-section">
+        <div class="module-header-container">
+          <!-- Nivel 1: Título y Acción Principal -->
+          <div class="module-header-top">
+            <div>
+              <h2 class="module-title">Expedientes LMD</h2>
+              <div class="module-subtitle">Listado general de trámites consulares en curso</div>
+            </div>
+            <button class="btn btn-primary" onclick="abrirModalNuevo()">
+              ➕ Nuevo Expediente
+            </button>
+          </div>
+
+          <!-- Nivel 2: Barra de Filtros Homogénea -->
+          <div class="module-filters-bar">
+            <div class="filters-group">
+              <select id="filter-consulado" class="form-select" onchange="aplicarFiltros()">
+                <option value="TODOS">🏛️ Todas las Sedes / Consulados</option>
+              </select>
+
+              <select id="filter-estado" class="form-select" onchange="aplicarFiltros()">
+                <option value="TODOS">📋 Todos los Estados</option>
+                <option value="PENDIENTE RESOLUCION">⏳ Pendiente Resolución</option>
+                <option value="PENDIENTE DE CREDENCIALES">🔑 Pendiente de Credenciales</option>
+                <option value="PENDIENTE DE CITA">📅 Pendiente de Cita</option>
+                <option value="RESUELTO FAVORABLE">🎉 Resuelto Favorable</option>
+                <option value="RESUELTO DENEGADO">❌ Resuelto Denegado</option>
+                <option value="RESUELTO">✅ Resuelto</option>
+                <option value="NO PRESENTADO">🚫 No Presentado</option>
+                <option value="RECURSO PRESENTADO">📑 Recurso Presentado</option>
+                <option value="RECURSO FAVORABLE">🌟 Recurso Favorable</option>
+                <option value="RECURSO DENEGADO">🛑 Recurso Denegado</option>
+              </select>
+            </div>
+
+            <div class="filters-summary">
+              <span id="expedientes-total-badge" style="font-weight: 600; color: var(--accent-cyan);">📋 Total Filtrados</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <div class="table-scroll-container">
+            <table class="modern-table">
+              <thead>
+                <tr>
+                  <th style="width: 65px;">ID</th>
+                  <th style="width: 22%;">Cliente</th>
+                  <th style="width: 17%;">Consulado</th>
+                  <th style="width: 18%;">Estado Oficial</th>
+                  <th style="width: 15%;">Estado Aviso</th>
+                  <th style="width: 28%;">Detalle / Observaciones</th>
+                </tr>
+              </thead>
+              <tbody id="table-expedientes-body">
+                <tr>
+                  <td colspan="6" style="text-align: center; padding: 36px; color: var(--text-muted);">
+                    ⏳ Conectando con Google Sheets...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Paginación -->
+        <div class="pagination-bar">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span id="pagination-info" style="font-size: 0.85rem; color: var(--text-muted);">Mostrando 0–0 de 0 expedientes</span>
+            <label style="font-size: 0.82rem; color: var(--text-dim);">Por página:</label>
+            <select id="page-size-select" class="form-select" style="padding: 4px 8px; font-size: 0.82rem;" onchange="cambiarRegistrosPorPagina(this.value)">
+              <option value="15" selected>15</option>
+              <option value="30">30</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button id="btn-prev-page" class="page-nav-btn" onclick="cambiarPagina(-1)" disabled>◀ Anterior</button>
+            <span id="page-indicator" style="font-size: 0.85rem; font-weight: 600;">Página 1 de 1</span>
+            <button id="btn-next-page" class="page-nav-btn" onclick="cambiarPagina(1)" disabled>Siguiente ▶</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- =======================================================================
+           VISTA 3: 🔑 COLA DE CITAS LMD (RADAR)
+      ======================================================================= -->
+      <section id="view-citas" class="view-section">
+        <div class="module-header-container">
+          <!-- Nivel 1: Título y Acción Principal -->
+          <div class="module-header-top">
+            <div>
+              <h2 class="module-title">Cola de Citas Consulares (Radar LMD)</h2>
+              <div class="module-subtitle">Gestión de credenciales, urgencias y preferencias para el robot</div>
+            </div>
+            <button class="btn btn-secondary" onclick="abrirModalSincronizadorCitas()">
+              🔄 Sincronizar con Tabla Principal
+            </button>
+          </div>
+
+          <!-- Nivel 2: Barra de Filtros Homogénea -->
+          <div class="module-filters-bar">
+            <div class="filters-group">
+              <select id="filter-citas-alcance" class="form-select" onchange="cambiarAlcanceCitas(this.value)" style="border-color: var(--accent-gold); font-weight: 600;">
+                <option value="ROBOT_LISTOS" selected>⚡ Listos para Robot de Citas (Con credenciales)</option>
+                <option value="TODOS_CARTERA">📋 Cartera Completa Citas/Credenciales</option>
+              </select>
+
+              <select id="filter-citas-consulado" class="form-select" onchange="aplicarFiltrosCitas()">
+                <option value="TODOS">🏛️ Todos los Consulados</option>
+              </select>
+
+              <select id="filter-citas-urgencia" class="form-select" onchange="aplicarFiltrosCitas()">
+                <option value="TODAS">⚡ Todas las Urgencias</option>
+                <option value="1. ALTA">🔴 1. Alta / Urgente</option>
+                <option value="2. MEDIA">🟡 2. Media / Normal</option>
+                <option value="3. BAJA">🟢 3. Baja</option>
+              </select>
+
+              <select id="filter-citas-credenciales" class="form-select" onchange="aplicarFiltrosCitas()">
+                <option value="TODAS">🔑 Todas las Credenciales</option>
+                <option value="CON_CREDENCIALES">🔑 Con Credenciales</option>
+                <option value="SIN_CREDENCIALES">⚠️ Sin Credenciales</option>
+              </select>
+            </div>
+
+            <div class="filters-summary">
+              <span id="citas-total-badge" style="font-weight: 600; color: var(--accent-gold);">⚡ Candidatos Filtrados</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <div class="table-scroll-container">
+            <table class="modern-table">
+              <thead>
+                <tr>
+                  <th style="width: 70px;">ID</th>
+                  <th style="width: 25%;">Cliente</th>
+                  <th style="width: 18%;">Consulado</th>
+                  <th style="width: 18%;">Urgencia Radar</th>
+                  <th style="width: 39%;">Preferencia de Cita / Accesos Consulares</th>
+                </tr>
+              </thead>
+              <tbody id="table-citas-body">
+                <tr>
+                  <td colspan="5" style="text-align: center; padding: 36px; color: var(--text-muted);">
+                    ⏳ Cargando candidatos de citas...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Paginación de Citas -->
+        <div class="pagination-bar">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span id="citas-pagination-info" style="font-size: 0.85rem; color: var(--text-muted);">Mostrando 0–0 de 0 candidatos</span>
+            <label style="font-size: 0.82rem; color: var(--text-dim);">Por página:</label>
+            <select id="citas-page-size-select" class="form-select" style="padding: 4px 8px; font-size: 0.82rem;" onchange="cambiarRegistrosPorPaginaCitas(this.value)">
+              <option value="15" selected>15</option>
+              <option value="30">30</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button id="btn-citas-prev-page" class="page-nav-btn" onclick="cambiarPaginaCitas(-1)" disabled>◀ Anterior</button>
+            <span id="citas-page-indicator" style="font-size: 0.85rem; font-weight: 600;">Página 1 de 1</span>
+            <button id="btn-citas-next-page" class="page-nav-btn" onclick="cambiarPaginaCitas(1)" disabled>Siguiente ▶</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- =======================================================================
+           VISTA: 🇨🇺 SEGUIMIENTO LA HABANA (VERIFICACION_CONSULAR)
+      ======================================================================= -->
+      <section id="view-habana" class="view-section">
+        <div class="module-header-container">
+          <div class="module-header-top">
+            <div>
+              <h2 class="module-title">Seguimiento La Habana</h2>
+              <div class="module-subtitle">Trazabilidad de verificaciones en la API oficial del Consulado General de España en La Habana</div>
+            </div>
+            <div class="module-actions" style="display: flex; align-items: center; gap: 10px;">
+              <button class="btn btn-secondary" onclick="exportarHabanaCSV()">
+                📥 Exportar CSV
+              </button>
+              <button class="btn btn-primary" onclick="cargarHabanaEnVista(true)">
+                🔄 Actualizar
+              </button>
+            </div>
+          </div>
+
+          <div class="module-filters-bar">
+            <div class="filters-group">
+              <div style="position: relative; min-width: 260px;">
+                <input type="text" id="filter-habana-search" class="form-input" placeholder="🔍 Buscar por ID, cliente, expediente o tomo..." oninput="aplicarFiltrosHabana()" style="height: 38px; font-size: 0.84rem;">
+              </div>
+              <select id="filter-habana-estado" class="form-select" onchange="aplicarFiltrosHabana()">
+                <option value="TODOS">⚡ Todos los Estados Consulares</option>
+              </select>
+            </div>
+
+            <div class="filters-summary">
+              <span id="habana-total-badge" style="font-weight: 600; color: var(--accent-cyan);">🇨🇺 0 Verificaciones</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <div class="table-scroll-container">
+            <table class="modern-table">
+              <thead>
+                <tr>
+                  <th style="width: 70px;">ID</th>
+                  <th style="width: 22%;">Cliente / Progenitor</th>
+                  <th style="width: 14%;">No. Expediente</th>
+                  <th style="width: 16%;">Estado Consulado</th>
+                  <th style="width: 16%;">Fechas (Res. / Insc.)</th>
+                  <th style="width: 16%;">Datos Registrales</th>
+                  <th style="width: 16%;">Última Verif.</th>
+                </tr>
+              </thead>
+              <tbody id="table-habana-body">
+                <tr>
+                  <td colspan="7" style="text-align: center; padding: 36px; color: var(--text-muted);">
+                    ⏳ Cargando bitácora consular de La Habana...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="pagination-bar">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span id="habana-pagination-info" style="font-size: 0.85rem; color: var(--text-muted);">Mostrando 0–0 de 0 registros</span>
+            <label style="font-size: 0.82rem; color: var(--text-dim);">Por página:</label>
+            <select id="habana-page-size-select" class="form-select" style="padding: 4px 8px; font-size: 0.82rem;" onchange="cambiarRegistrosPorPaginaHabana(this.value)">
+              <option value="15" selected>15</option>
+              <option value="30">30</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button id="btn-prev-page-habana" class="page-nav-btn" onclick="cambiarPaginaHabana(-1)" disabled>◀ Anterior</button>
+            <span id="page-indicator-habana" style="font-size: 0.85rem; font-weight: 600;">Página 1 de 1</span>
+            <button id="btn-next-page-habana" class="page-nav-btn" onclick="cambiarPaginaHabana(1)" disabled>Siguiente ▶</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- =======================================================================
+           VISTA: 🇪🇸 SEGUIMIENTO RCC ESPAÑA (VERIFICACION_RCC)
+      ======================================================================= -->
+      <section id="view-rcc" class="view-section">
+        <div class="module-header-container">
+          <div class="module-header-top">
+            <div>
+              <h2 class="module-title">Seguimiento RCC (España)</h2>
+              <div class="module-subtitle">Trazabilidad oficial de expedientes en el Registro Civil Central de España (Ministerio de Justicia)</div>
+            </div>
+            <div class="module-actions" style="display: flex; align-items: center; gap: 10px;">
+              <button class="btn btn-secondary" onclick="exportarRccCSV()">
+                📥 Exportar CSV
+              </button>
+              <button class="btn btn-primary" onclick="cargarRCCEnVista(true)">
+                🔄 Actualizar
+              </button>
+            </div>
+          </div>
+
+          <div class="module-filters-bar">
+            <div class="filters-group">
+              <div style="position: relative; min-width: 260px;">
+                <input type="text" id="filter-rcc-search" class="form-input" placeholder="🔍 Buscar por ID, cliente, expediente o detalle..." oninput="aplicarFiltrosRCC()" style="height: 38px; font-size: 0.84rem;">
+              </div>
+              <select id="filter-rcc-estado" class="form-select" onchange="aplicarFiltrosRCC()">
+                <option value="TODOS">⚡ Todos los Estados RCC</option>
+              </select>
+            </div>
+
+            <div class="filters-summary">
+              <span id="rcc-total-badge" style="font-weight: 600; color: var(--accent-gold);">🇪🇸 0 Verificados</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <div class="table-scroll-container">
+            <table class="modern-table">
+              <thead>
+                <tr>
+                  <th style="width: 70px;">ID</th>
+                  <th style="width: 22%;">Cliente</th>
+                  <th style="width: 14%;">No. Expediente / Año</th>
+                  <th style="width: 16%;">Estado Oficial RCC</th>
+                  <th style="width: 26%;">Detalle Oficial Ministerio</th>
+                  <th style="width: 8%;">Resultado</th>
+                  <th style="width: 14%;">Última Verif.</th>
+                </tr>
+              </thead>
+              <tbody id="table-rcc-body">
+                <tr>
+                  <td colspan="7" style="text-align: center; padding: 36px; color: var(--text-muted);">
+                    ⏳ Cargando bitácora de resoluciones RCC...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="pagination-bar">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span id="rcc-pagination-info" style="font-size: 0.85rem; color: var(--text-muted);">Mostrando 0–0 de 0 registros</span>
+            <label style="font-size: 0.82rem; color: var(--text-dim);">Por página:</label>
+            <select id="rcc-page-size-select" class="form-select" style="padding: 4px 8px; font-size: 0.82rem;" onchange="cambiarRegistrosPorPaginaRCC(this.value)">
+              <option value="15" selected>15</option>
+              <option value="30">30</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button id="btn-prev-page-rcc" class="page-nav-btn" onclick="cambiarPaginaRCC(-1)" disabled>◀ Anterior</button>
+            <span id="page-indicator-rcc" style="font-size: 0.85rem; font-weight: 600;">Página 1 de 1</span>
+            <button id="btn-next-page-rcc" class="page-nav-btn" onclick="cambiarPaginaRCC(1)" disabled>Siguiente ▶</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- =======================================================================
+           VISTA 4: ⚡ CENTRO DE AUTOMATIZACIONES (4 Action Cards + Modales)
+      ======================================================================= -->
+      <section id="view-automatizaciones" class="view-section">
+        <div style="margin-bottom: 24px;">
+          <h2 style="font-family: var(--font-display); font-size: 1.4rem; font-weight: 700;">Centro de Automatizaciones Consulares</h2>
+          <div style="font-size: 0.85rem; color: var(--text-dim);">Ejecución de procesos masivos, verificaciones y auditorías en tiempo real</div>
+        </div>
+
+        <div class="actions-grid">
+          
+          <!-- Acción 1: Auditor de Vencimientos -->
+          <div class="action-card">
+            <div>
+              <div class="action-card-header">
+                <div class="action-card-icon" style="background: rgba(245, 158, 11, 0.15); color: var(--accent-gold);">⏰</div>
+                <div>
+                  <h3 class="action-card-title">Auditor de Vencimientos</h3>
+                  <div style="font-size: 0.75rem; color: var(--text-dim);">Trabajador Nocturno</div>
+                </div>
+              </div>
+              <p class="action-card-desc" style="margin-top: 12px;">
+                Evalúa los ciclos de silencio (30/60 días) y renueva el estado de notificación de expedientes cuyos plazos hayan vencido.
+              </p>
+            </div>
+
+            <div class="action-card-stats">
+              <div>
+                <div style="font-size: 0.72rem; color: var(--text-dim);">Notificaciones Activas</div>
+                <strong id="auto-notif-activas" style="color: var(--accent-gold);">0</strong>
+              </div>
+              <button class="btn btn-primary" onclick="abrirModalAuditorVencimientos()" style="padding: 8px 14px; font-size: 0.82rem;">
+                🔍 Auditar Vencimientos
+              </button>
+            </div>
+          </div>
+
+          <!-- Acción 2: Motor de Envíos -->
+          <div class="action-card">
+            <div>
+              <div class="action-card-header">
+                <div class="action-card-icon" style="background: rgba(34, 211, 238, 0.15); color: var(--accent-cyan);">📬</div>
+                <div>
+                  <h3 class="action-card-title">Motor de Envíos de Avisos</h3>
+                  <div style="font-size: 0.75rem; color: var(--text-dim);">Notificaciones por Email</div>
+                </div>
+              </div>
+              <p class="action-card-desc" style="margin-top: 12px;">
+                Envía correos personalizados con plantillas oficiales a clientes con avisos pendientes, respetando el escudo de 4.5 minutos.
+              </p>
+            </div>
+
+            <!-- Sub-Desglose Ejecutivo Pre-Flight -->
+            <div class="action-card-breakdown" style="margin: 12px 0 16px 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+              <div style="background: var(--bg-card-elevated); padding: 6px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); text-align: center;">
+                <div style="font-size: 0.65rem; color: var(--accent-green); font-weight: 600;">🟢 AL DÍA</div>
+                <strong id="auto-envios-notificados" style="font-size: 0.88rem; color: #FFFFFF;">779</strong>
+                <div style="font-size: 0.60rem; color: var(--text-dim);">En Silencio</div>
+              </div>
+              <div style="background: var(--bg-card-elevated); padding: 6px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); text-align: center;">
+                <div style="font-size: 0.65rem; color: var(--accent-gold); font-weight: 600;">⏳ CARENCIA</div>
+                <strong id="auto-envios-carencia" style="font-size: 0.88rem; color: var(--accent-gold);">23</strong>
+                <div id="auto-envios-carencia-sub" style="font-size: 0.60rem; color: var(--text-dim);">&lt; 60 Días Cita</div>
+              </div>
+              <div style="background: var(--bg-card-elevated); padding: 6px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); text-align: center;">
+                <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 600;">🚫 DESCART.</div>
+                <strong id="auto-envios-descartados" style="font-size: 0.88rem; color: var(--text-muted);">0</strong>
+                <div style="font-size: 0.60rem; color: var(--text-dim);">Sin Email / Baja</div>
+              </div>
+            </div>
+
+            <div class="action-card-stats">
+              <div>
+                <div style="font-size: 0.72rem; color: var(--text-dim);">Listos para Envío Hoy</div>
+                <strong id="auto-pendientes-envio" style="color: var(--accent-cyan);">0</strong>
+              </div>
+              <button class="btn btn-primary" onclick="abrirModalEnvioNotificaciones()" style="padding: 8px 14px; font-size: 0.82rem;">
+                🚀 Procesar Envíos
+              </button>
+            </div>
+          </div>
+
+          <!-- Acción 3: Sincronizador de Citas -->
+          <div class="action-card">
+            <div>
+              <div class="action-card-header">
+                <div class="action-card-icon" style="background: rgba(168, 85, 247, 0.15); color: var(--accent-purple);">🔄</div>
+                <div>
+                  <h3 class="action-card-title">Sincronizador de Citas LMD</h3>
+                  <div style="font-size: 0.75rem; color: var(--text-dim);">Radar de Citas</div>
+                </div>
+              </div>
+              <p class="action-card-desc" style="margin-top: 12px;">
+                Cruza la tabla principal para agregar a la hoja de credenciales a todos los clientes que hayan pasado al estado Pendiente de Cita.
+              </p>
+            </div>
+
+            <div class="action-card-stats">
+              <div>
+                <div style="font-size: 0.72rem; color: var(--text-dim);">Candidatos en Cola</div>
+                <strong id="auto-candidatos-cola" style="color: var(--accent-purple);">0</strong>
+              </div>
+              <button class="btn btn-primary" onclick="abrirModalSincronizadorCitas()" style="padding: 8px 14px; font-size: 0.82rem;">
+                🔄 Sincronizar Ahora
+              </button>
+            </div>
+          </div>
+
+          <!-- Acción 4: Verificador Consular La Habana -->
+          <div class="action-card">
+            <div>
+              <div class="action-card-header">
+                <div class="action-card-icon" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green);">🔍</div>
+                <div>
+                  <h3 class="action-card-title">Verificador API La Habana</h3>
+                  <div style="font-size: 0.75rem; color: var(--text-dim);">Consulta Oficial en Directo</div>
+                </div>
+              </div>
+              <p class="action-card-desc" style="margin-top: 12px;">
+                Consulta en tiempo real el servidor oficial del Consulado de La Habana para obtener el estado registral y fecha de inscripción.
+              </p>
+            </div>
+
+            <div class="action-card-stats">
+              <div>
+                <div style="font-size: 0.72rem; color: var(--text-dim);">En Resolución (Habana)</div>
+                <strong id="auto-habana-total" style="color: var(--accent-green);">0</strong>
+              </div>
+              <button class="btn btn-primary" onclick="abrirModalVerificadorHabana()" style="padding: 8px 14px; font-size: 0.82rem;">
+                🔍 Consultar en Vivo
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- =======================================================================
+           VISTA 5: ⚙️ PANEL DE CONFIGURACIÓN DEL DESPACHO (2 COLUMNAS FULL-WIDTH)
+      ======================================================================= -->
+      <section id="view-configuracion" class="view-section">
+        <div style="margin-bottom: 20px;">
+          <h2 style="font-family: var(--font-display); font-size: 1.4rem; font-weight: 700;">Configuración del Despacho y Parámetros</h2>
+          <div style="font-size: 0.85rem; color: var(--text-dim);">Ajuste de tiempos, correo de pruebas e identidad visual</div>
+        </div>
+
+        <form id="form-config-sistema" style="width: 100%; box-sizing: border-box;">
+          <div class="config-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; box-sizing: border-box;">
+            
+            <!-- COLUMNA IZQUIERDA: Modo Prueba + Tiempos -->
+            <div style="display: flex; flex-direction: column; gap: 20px; width: 100%;">
+              <!-- Tarjeta 1: Modo Prueba -->
+              <div class="dash-box" style="width: 100%; box-sizing: border-box;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                  <h3 style="font-size: 1.02rem; font-weight: 700; color: var(--accent-gold); margin: 0;">🟡 Modo Prueba (Simulacro)</h3>
+                  <label class="switch-wrapper">
+                    <span id="cfg-modo-prueba-texto" style="font-size: 0.82rem; font-weight: 600; color: var(--text-muted);">Activar</span>
+                    <div class="switch-toggle">
+                      <input type="checkbox" id="cfg-modo-prueba">
+                      <span class="slider-round"></span>
+                    </div>
+                  </label>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Email para recibir pruebas:</label>
+                  <input type="email" id="cfg-email-prueba" class="form-input" placeholder="tu-email@gmail.com" required>
+                  <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 4px;">
+                    * En modo prueba, todos los avisos y correos se desvían de forma segura a esta cuenta.
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tarjeta 2: Tiempos y Ciclos -->
+              <div class="dash-box" style="width: 100%; box-sizing: border-box;">
+                <h3 style="font-size: 1.02rem; font-weight: 700; color: var(--accent-cyan); margin-bottom: 14px;">⏰ Tiempos y Ciclos de Notificación</h3>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label class="form-label">Días de Silencio (Resoluciones):</label>
+                    <input type="number" id="cfg-dias-carencia" class="form-input" min="1" max="365" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Frecuencia Avisos (Resolución/Recurso):</label>
+                    <input type="number" id="cfg-dias-seguimiento" class="form-input" min="1" max="365" required>
+                  </div>
+                  <div class="form-group full">
+                    <label class="form-label">Frecuencia Avisos (Citas/Credenciales):</label>
+                    <input type="number" id="cfg-dias-tramites" class="form-input" min="1" max="365" required>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- COLUMNA DERECHA: Identidad de Marca + Guardar -->
+            <div style="display: flex; flex-direction: column; gap: 20px; width: 100%;">
+              <div class="dash-box" style="width: 100%; box-sizing: border-box;">
+                <h3 style="font-size: 1.02rem; font-weight: 700; color: var(--accent-purple); margin-bottom: 14px;">🎨 Identidad de Marca</h3>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label class="form-label">Color Corporativo (Oro):</label>
+                    <div style="display: flex; gap: 8px;">
+                      <input type="color" id="cfg-color-oro-picker" style="height: 38px; width: 44px; background: transparent; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); cursor: pointer;">
+                      <input type="text" id="cfg-color-oro" class="form-input" style="flex: 1;" placeholder="#D4AF37">
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Color de Fondo:</label>
+                    <div style="display: flex; gap: 8px;">
+                      <input type="color" id="cfg-color-fondo-picker" style="height: 38px; width: 44px; background: transparent; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); cursor: pointer;">
+                      <input type="text" id="cfg-color-fondo" class="form-input" style="flex: 1;" placeholder="#FFFFFF">
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Color de Texto:</label>
+                    <div style="display: flex; gap: 8px;">
+                      <input type="color" id="cfg-color-texto-picker" style="height: 38px; width: 44px; background: transparent; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); cursor: pointer;">
+                      <input type="text" id="cfg-color-texto" class="form-input" style="flex: 1;" placeholder="#333333">
+                    </div>
+                  </div>
+
+                  <div class="form-group full">
+                    <label class="form-label">URL del Logo Público:</label>
+                    <input type="url" id="cfg-url-logo" class="form-input" placeholder="https://estelamarina.com/...logo.png">
+                  </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
+                  <button type="submit" id="btn-guardar-config" class="btn btn-primary" style="width: 100%; justify-content: center;">
+                    💾 Guardar Configuración en Google Sheets
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </form>
+
+        <!-- PANEL DE GESTIÓN DE USUARIOS Y ROLES (RBAC) -->
+        <div class="dash-box" style="margin-top: 24px; width: 100%; box-sizing: border-box;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+            <div>
+              <h3 style="font-size: 1.1rem; font-weight: 700; color: #FFFFFF; margin: 0 0 4px 0;">👥 Gestión de Usuarios y Roles de Acceso</h3>
+              <div style="font-size: 0.8rem; color: var(--text-dim);">Administra los usuarios del sistema, sus contraseñas hasheadas (Bcrypt) y sus niveles de acceso (RBAC).</div>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" onclick="abrirModalUsuario()" style="padding: 8px 14px; font-size: 0.82rem;">
+              ➕ Crear Nuevo Usuario
+            </button>
+          </div>
+
+          <!-- Tabla de Usuarios Registrados -->
+          <div class="table-container" style="max-height: 350px; overflow-y: auto;">
+            <table class="modern-table">
+              <thead>
+                <tr>
+                  <th style="width: 25%;">Nombre Completo</th>
+                  <th style="width: 30%;">Correo Electrónico (Email)</th>
+                  <th style="width: 15%;">Nivel de Acceso</th>
+                  <th style="width: 12%;">Estado</th>
+                  <th style="width: 18%;">Último Acceso</th>
+                  <th style="width: 15%; text-align: right;">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tabla-usuarios-body">
+                <tr>
+                  <td colspan="6" style="text-align: center; padding: 20px; color: var(--text-dim);">Cargando usuarios...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- =======================================================================
+           VISTA 6: 🛡️ AUDITORÍA Y BITÁCORA DEL SISTEMA (Exclusivo Administrador)
+      ======================================================================= -->
+      <section id="view-logs" class="view-section">
+        <div class="module-header-container">
+          <!-- Nivel 1: Título y Acciones Principales -->
+          <div class="module-header-top">
+            <div>
+              <h2 class="module-title">Auditoría & Bitácora</h2>
+              <div class="module-subtitle">Trazabilidad de operaciones automáticas, verificaciones y accesos de seguridad</div>
+            </div>
+            <div class="module-actions" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <!-- Conmutador de Pestañas Estandarizado -->
+              <div class="tab-group-container" style="display: flex; gap: 4px; background: rgba(15, 23, 42, 0.65); padding: 4px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+                <button id="tab-logs-operaciones" class="btn btn-secondary btn-sm active" onclick="cambiarTabLogs('operaciones')">
+                  📋 Operaciones y Robots (Sheets)
+                </button>
+                <button id="tab-logs-seguridad" class="btn btn-secondary btn-sm" onclick="cambiarTabLogs('seguridad')">
+                  🔐 Seguridad y Accesos (MySQL)
+                </button>
+              </div>
+              <button class="btn btn-secondary" onclick="exportarLogsCSV()">
+                📥 Exportar CSV
+              </button>
+              <button class="btn btn-primary" onclick="cargarLogsEnVista(true)">
+                🔄 Actualizar
+              </button>
+            </div>
+          </div>
+
+          <!-- Nivel 2: Barra de Filtros Homogénea -->
+          <div class="module-filters-bar">
+            <div class="filters-group">
+              <div style="position: relative; min-width: 260px;">
+                <input type="text" id="filter-logs-search" class="form-input" placeholder="🔍 Buscar por ID, cliente, usuario, detalle o IP..." oninput="aplicarFiltrosLogs()" style="height: 38px; font-size: 0.84rem;">
+              </div>
+              <select id="filter-logs-evento" class="form-select" onchange="aplicarFiltrosLogs()">
+                <option value="TODOS">⚡ Todos los Eventos</option>
+              </select>
+            </div>
+
+            <div class="filters-summary">
+              <span id="logs-total-badge" style="font-weight: 600; color: var(--accent-cyan);">🛡️ 0 Registros</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabla con Scroll Autónomo (Componente 2) -->
+        <div class="table-container">
+          <div class="table-scroll-container">
+            <table class="modern-table">
+              <thead id="table-logs-head">
+                <tr>
+                  <th style="width: 140px;">Fecha y Hora</th>
+                  <th style="width: 100px;">ID Expediente</th>
+                  <th style="width: 180px;">Cliente</th>
+                  <th style="width: 180px;">Correo Electrónico</th>
+                  <th style="width: 160px;">Acción / Proceso</th>
+                  <th>Detalle de Auditoría</th>
+                </tr>
+              </thead>
+              <tbody id="table-logs-body">
+                <tr>
+                  <td colspan="6" style="text-align: center; padding: 36px; color: var(--text-muted);">
+                    ⏳ Cargando bitácora de auditoría...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Paginador Universal Compartido (Componente 3) -->
+        <div class="pagination-bar">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span id="logs-pagination-info" style="font-size: 0.85rem; color: var(--text-muted);">Mostrando 0–0 de 0 registros</span>
+            <label style="font-size: 0.82rem; color: var(--text-dim);">Por página:</label>
+            <select id="logs-page-size-select" class="form-select" style="padding: 4px 8px; font-size: 0.82rem;" onchange="cambiarRegistrosPorPaginaLogs(this.value)">
+              <option value="15" selected>15</option>
+              <option value="30">30</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button id="btn-prev-page-logs" class="page-nav-btn" onclick="cambiarPaginaLogs(-1)" disabled>◀ Anterior</button>
+            <span id="page-indicator-logs" style="font-size: 0.85rem; font-weight: 600;">Página 1 de 1</span>
+            <button id="btn-next-page-logs" class="page-nav-btn" onclick="cambiarPaginaLogs(1)" disabled>Siguiente ▶</button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- =============================================================================
+       MODAL 1: FICHA DE EXPEDIENTE GENERAL (Todos los Expedientes)
+  ============================================================================= -->
+  <div id="modal-expediente-general" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-exp-titulo">Ficha del Expediente</h2>
+        <button class="modal-close" onclick="cerrarModalExpediente()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <form id="form-expediente" class="form-grid">
+          
+          <div class="form-group">
+            <label class="form-label">Identificador (ID)</label>
+            <div class="id-badge-lock">
+              <span id="exp-id-display">I1</span>
+              <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal;">🔒 Intocable</span>
+            </div>
+            <input type="hidden" id="exp-id-val">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Consulado Asignado</label>
+            <select id="exp-consulado-select" class="form-select" onchange="gestionarCambioConsulado(this.value)" required>
+              <!-- Inyectado dinámicamente -->
+            </select>
+            <div id="wrapper-consulado-otro" style="display: none; margin-top: 6px;">
+              <input type="text" id="exp-consulado-manual" class="form-input" placeholder="Escribe el nuevo consulado (ej: AUSTRIA VIENA)">
+              <div style="font-size: 0.72rem; color: var(--accent-gold); margin-top: 3px;">
+                ✨ Se auto-registrará en Data_Mapping sin romper fórmulas.
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Nombre(s)</label>
+            <input type="text" id="exp-nombre" class="form-input" placeholder="Nombre del cliente" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Apellidos</label>
+            <input type="text" id="exp-apellidos" class="form-input" placeholder="Apellidos del cliente" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">No. de Expediente Consular</label>
+            <input type="text" id="exp-no-expediente" class="form-input" placeholder="Ej: 210726-174">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Estado Oficial del Expediente</label>
+            <select id="exp-estado" class="form-select" required>
+              <option value="PENDIENTE RESOLUCION">⏳ PENDIENTE RESOLUCION</option>
+              <option value="PENDIENTE DE CREDENCIALES">🔑 PENDIENTE DE CREDENCIALES</option>
+              <option value="PENDIENTE DE CITA">📅 PENDIENTE DE CITA</option>
+              <option value="RESUELTO FAVORABLE">🎉 RESUELTO FAVORABLE</option>
+              <option value="RESUELTO DENEGADO">❌ RESUELTO DENEGADO</option>
+              <option value="RESUELTO">✅ RESUELTO</option>
+              <option value="NO PRESENTADO">🚫 NO PRESENTADO</option>
+              <option value="RECURSO PRESENTADO">📑 RECURSO PRESENTADO</option>
+              <option value="RECURSO FAVORABLE">🌟 RECURSO FAVORABLE</option>
+              <option value="RECURSO DENEGADO">🛑 RECURSO DENEGADO</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Correo Institucional Creado</label>
+            <input type="text" id="exp-correo-creado" class="form-input" placeholder="usuario@lmd2022.com">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Correo Electrónico Personal</label>
+            <input type="email" id="exp-email-personal" class="form-input" placeholder="cliente@gmail.com">
+          </div>
+
+          <!-- Detalle Asistido Poka-Yoke -->
+          <div class="form-group full">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; flex-wrap: wrap; gap: 6px;">
+              <label class="form-label">Detalle del Expediente</label>
+              <div id="contenedor-pildoras-sugerencias" style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <!-- Píldoras inyectadas según el estado -->
+              </div>
+            </div>
+            <input type="text" id="exp-detalle" class="form-input" placeholder="Ej: CITA 21-07-2026">
+            <div id="guia-explicacion-detalle" style="font-size: 0.74rem; color: var(--text-dim); margin-top: 3px;">
+              Fecha de presentación del expediente en el Consulado
+            </div>
+          </div>
+
+          <div class="form-group full">
+            <label class="form-label">Observaciones</label>
+            <textarea id="exp-observaciones" class="form-textarea" rows="2" placeholder="Notas internas sobre el expediente"></textarea>
+          </div>
+
+          <!-- Panel Dinámico de Notificaciones y Suscripción -->
+          <div class="form-group full" style="background: var(--bg-card-elevated); padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 8px;">
+              <span style="font-size: 0.78rem; font-weight: 700; color: var(--accent-cyan); text-transform: uppercase;">
+                📬 Gestión de Notificaciones y Suscripción
+              </span>
+              <span id="exp-diagnostico-badge" class="badge" style="font-size: 0.70rem;">
+                Evaluando...
+              </span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-items: start;">
+              <!-- 1. Estado de Notificación -->
+              <div class="form-group" style="margin: 0;">
+                <label class="form-label" style="font-size: 0.70rem; color: var(--text-dim); margin-bottom: 4px;">Estado de Notificación:</label>
+                <select id="exp-notificado-select" class="form-select" style="font-size: 0.80rem; padding: 6px 8px;" onchange="evaluarDirtyExpediente()">
+                  <option value="SI">🟢 Notificado (SI)</option>
+                  <option value="NO">⚪ No Notificado (NO)</option>
+                </select>
+              </div>
+
+              <!-- 2. Fecha Último Envío -->
+              <div class="form-group" style="margin: 0;">
+                <label class="form-label" style="font-size: 0.70rem; color: var(--text-dim); margin-bottom: 4px;">Fecha Último Envío:</label>
+                <input type="text" id="exp-fecha-notif-input" class="form-control" placeholder="DD/MM/AAAA HH:MM o vacío" style="font-size: 0.80rem; padding: 6px 8px;" oninput="evaluarDirtyExpediente()">
+              </div>
+
+              <!-- 3. Suscripción / Baja -->
+              <div class="form-group" style="margin: 0;">
+                <label class="form-label" style="font-size: 0.70rem; color: var(--text-dim); margin-bottom: 4px;">Suscripción Cliente:</label>
+                <select id="exp-baja-select" class="form-select" style="font-size: 0.80rem; padding: 6px 8px;" onchange="evaluarDirtyExpediente()">
+                  <option value="NO">🟢 Activo (Recibe avisos)</option>
+                  <option value="SI">🚫 Baja / Desuscrito</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="exp-diagnostico-explicacion" style="font-size: 0.70rem; color: var(--text-dim); margin-top: 8px; line-height: 1.4;">
+              <!-- Inyectado dinámicamente según la regla de carencia y configuración del despacho -->
+            </div>
+          </div>
+
+          <!-- Tarjeta de Verificación Oficial (La Habana / RCC) inyectada dinámicamente -->
+          <div id="exp-verificacion-card-container" class="form-group full" style="display: none; margin: 6px 0 0 0;"></div>
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="cerrarModalExpediente()">Cancelar</button>
+        <button type="button" id="btn-guardar-exp" class="btn btn-primary" onclick="guardarExpedienteFormulario()">
+          💾 Guardar en Workspace
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =============================================================================
+       MODAL 2: GESTIÓN DE CITAS CONSULARES Y RADAR
+  ============================================================================= -->
+  <div id="modal-citas-radar" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-citas-titulo">🔑 Gestión de Cita Consular</h2>
+        <button class="modal-close" onclick="cerrarModalCitas()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <form id="form-citas" class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Identificador</label>
+            <div class="id-badge-lock">
+              <span id="citas-id-display">I1</span>
+              <span style="font-size: 0.75rem; color: var(--accent-gold); font-weight: normal;">🔒 Intocable</span>
+            </div>
+            <input type="hidden" id="citas-id-val">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Consulado Asignado</label>
+            <div style="padding: 10px 14px; background: var(--bg-card-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); font-weight: 600;" id="citas-consulado-display">
+              CUBA LA HABANA
+            </div>
+          </div>
+
+          <div class="form-group full">
+            <label class="form-label">Cliente</label>
+            <div style="padding: 10px 14px; background: var(--bg-card-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); font-weight: 700; font-size: 1rem;" id="citas-nombre-display">
+              Nombre Completo
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Nivel de Urgencia (Prioridad)</label>
+            <select id="citas-urgencia" class="form-select">
+              <option value="1. ALTA / URGENTE">🔴 1. ALTA / URGENTE</option>
+              <option value="2. MEDIA / NORMAL">🟡 2. MEDIA / NORMAL</option>
+              <option value="3. BAJA">🟢 3. BAJA</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Fecha de Cita Asignada</label>
+            <input type="text" id="citas-fecha-asignada" class="form-input" placeholder="Ej: 16/11/2026 09:30 o vacía">
+          </div>
+
+          <div class="form-group full">
+            <label class="form-label">Preferencia de Cita para el Robot</label>
+            <input type="text" id="citas-preferencia" class="form-input" placeholder="Ej: LUNES - MIERCOLES 13:00 - 15:00 o CUALQUIER FECHA">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Usuario / ID Consular</label>
+            <input type="text" id="citas-usuario" class="form-input" placeholder="Usuario de Bookitit">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Contraseña Consular</label>
+            <input type="password" id="citas-password" class="form-input" placeholder="Contraseña de Bookitit">
+          </div>
+
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="cerrarModalCitas()">Cancelar</button>
+        <button type="button" id="btn-guardar-citas" class="btn btn-primary" onclick="guardarPreferenciasCitasFormulario()">
+          💾 Guardar Preferencias de Citas
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =============================================================================
+       MODAL 3: AUDITOR DE VENCIMIENTOS DE NOTIFICACIONES
+  ============================================================================= -->
+  <div id="modal-auditor-vencimientos" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 class="modal-title">⏰ Auditor de Vencimientos</h2>
+        <button class="modal-close" onclick="cerrarModalAuditor()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="banner-modo-vencimientos" class="modo-alerta-banner"></div>
+        <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 14px;">
+          Esta operación evalúa todos los expedientes según los ciclos de días configurados (30/60 días) y renueva aquellos listos para un nuevo aviso.
+        </p>
+        <div id="reporte-auditor-contenedor" style="background: var(--bg-card-elevated); padding: 16px; border-radius: var(--radius-md); font-family: monospace; font-size: 0.82rem; max-height: 250px; overflow-y: auto;">
+          Haz clic en "Iniciar Auditoría" para ejecutar el proceso en Google Sheets.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="cerrarModalAuditor()">Cerrar</button>
+        <button type="button" id="btn-ejecutar-auditor" class="btn btn-primary" onclick="ejecutarAuditorDesdeUI()">
+          ⚡ Iniciar Auditoría
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =============================================================================
+       MODAL 4: MOTOR DE ENVÍOS DE NOTIFICACIONES (INTERACTIVO CON TERMINAL Y LISTA)
+  ============================================================================= -->
+  <div id="modal-envios-notificaciones" class="modal-backdrop">
+    <div class="modal-dialog" style="max-width: 680px;">
+      <div class="modal-header">
+        <h2 class="modal-title">📬 Motor de Envíos Masivos (Notificaciones)</h2>
+        <button class="modal-close" onclick="cerrarModalEnvios()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="banner-modo-envios" class="modo-alerta-banner"></div>
+
+        <!-- Resumen Diagnóstico Pre-Flight -->
+        <div id="envios-preflight-banner" style="background: var(--bg-card-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 0.76rem; font-weight: 700; color: var(--accent-cyan); text-transform: uppercase;">📊 Auditoría Previa de la Cartera</span>
+            <span id="envios-preflight-badge" class="badge badge-estado-favorable" style="font-size: 0.70rem;">✓ Al Día</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center;">
+            <div style="background: rgba(255,255,255,0.03); padding: 6px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+              <div style="font-size: 0.62rem; color: var(--text-dim);">TOTAL CARTERA</div>
+              <strong id="modal-envios-total" style="font-size: 0.90rem; color: #FFF;">802</strong>
+            </div>
+            <div style="background: rgba(34,197,94,0.08); padding: 6px; border-radius: var(--radius-sm); border: 1px solid rgba(34,197,94,0.2);">
+              <div style="font-size: 0.62rem; color: var(--accent-green);">🟢 NOTIFICADOS</div>
+              <strong id="modal-envios-notificados" style="font-size: 0.90rem; color: var(--accent-green);">779</strong>
+            </div>
+            <div style="background: rgba(245,158,11,0.08); padding: 6px; border-radius: var(--radius-sm); border: 1px solid rgba(245,158,11,0.2);">
+              <div style="font-size: 0.62rem; color: var(--accent-gold);">⏳ EN CARENCIA</div>
+              <strong id="modal-envios-carencia" style="font-size: 0.90rem; color: var(--accent-gold);">23</strong>
+            </div>
+            <div style="background: rgba(34,211,238,0.08); padding: 6px; border-radius: var(--radius-sm); border: 1px solid rgba(34,211,238,0.2);">
+              <div style="font-size: 0.62rem; color: var(--accent-cyan);">🚀 LISTOS HOY</div>
+              <strong id="modal-envios-listos" style="font-size: 0.90rem; color: var(--accent-cyan);">0</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Barra de Progreso y Estado -->
+        <div style="margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 6px;">
+            <span id="envios-progreso-texto" style="font-weight: 600; color: var(--text-main);">Listo para iniciar envíos</span>
+            <span id="envios-progreso-estado" style="color: var(--accent-cyan);">En espera</span>
+          </div>
+          <div style="height: 8px; background: var(--bg-card-elevated); border-radius: var(--radius-full); overflow: hidden; border: 1px solid var(--border-subtle);">
+            <div id="envios-progreso-barra" style="height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent-cyan), #38BDF8); transition: width 0.3s ease;"></div>
+          </div>
+        </div>
+
+        <!-- Consola Terminal en Vivo -->
+        <div style="font-size: 0.74rem; color: var(--text-dim); margin-bottom: 4px; font-weight: 700; text-transform: uppercase;">
+          📟 Registro de Transmisión en Tiempo Real:
+        </div>
+        <div id="envios-batch-console" style="background: #0B0F17; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px; font-family: monospace; font-size: 0.78rem; height: 160px; overflow-y: auto; color: #E2E8F0; line-height: 1.6; margin-bottom: 14px;">
+          <span style="color: #64748B;">[SISTEMA] Motor de envíos preparado. Haz clic en "Iniciar Envíos Masivos".</span>
+        </div>
+
+        <!-- Contenedor de Reporte y Listado Final -->
+        <div id="envios-reporte-contenedor" style="display: none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="cerrarModalEnvios()">Cerrar</button>
+        <button type="button" id="btn-envios-batch-iniciar" class="btn btn-primary" onclick="ejecutarEnviosDesdeUI()">
+          🚀 Iniciar Envíos Masivos
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =============================================================================
+       MODAL 4B: SINCRONIZADOR DE CITAS CONSULARES (RADAR LMD)
+  ============================================================================= -->
+  <div id="modal-sincronizador-citas" class="modal-backdrop">
+    <div class="modal-dialog" style="max-width: 680px;">
+      <div class="modal-header">
+        <h2 class="modal-title">🔄 Sincronizador de Citas Consulares (Radar LMD)</h2>
+        <button class="modal-close" onclick="cerrarModalSincronizadorCitas()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="banner-modo-sincronizador-citas" class="modo-alerta-banner"></div>
+
+        <!-- Barra de Progreso y Estado -->
+        <div style="margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 6px;">
+            <span id="citas-sync-progreso-texto" style="font-weight: 600; color: var(--text-main);">Listo para escanear base de datos</span>
+            <span id="citas-sync-progreso-estado" style="color: var(--accent-purple);">En espera</span>
+          </div>
+          <div style="height: 8px; background: var(--bg-card-elevated); border-radius: var(--radius-full); overflow: hidden; border: 1px solid var(--border-subtle);">
+            <div id="citas-sync-progreso-barra" style="height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent-purple), #C084FC); transition: width 0.3s ease;"></div>
+          </div>
+        </div>
+
+        <!-- Consola Terminal en Vivo -->
+        <div style="font-size: 0.74rem; color: var(--text-dim); margin-bottom: 4px; font-weight: 700; text-transform: uppercase;">
+          📟 Consola de Análisis y Cruce de Datos:
+        </div>
+        <div id="citas-sync-console" style="background: #0B0F17; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px; font-family: monospace; font-size: 0.78rem; height: 160px; overflow-y: auto; color: #E2E8F0; line-height: 1.6; margin-bottom: 14px;">
+          <span style="color: #64748B;">[SISTEMA] Sincronizador preparado. Haz clic en "Iniciar Sincronización".</span>
+        </div>
+
+        <!-- Contenedor de Reporte y Listado Final -->
+        <div id="citas-sync-reporte-contenedor" style="display: none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="cerrarModalSincronizadorCitas()">Cerrar</button>
+        <button type="button" id="btn-citas-sync-iniciar" class="btn btn-primary" onclick="ejecutarSincronizacionCitasInteractivo()">
+          🔄 Iniciar Sincronización
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =============================================================================
+       MODAL 5: VERIFICADOR EN VIVO API LA HABANA (INDIVIDUAL + LOTE MASIVO)
+  ============================================================================= -->
+  <div id="modal-verificador-habana" class="modal-backdrop">
+    <div class="modal-dialog" style="max-width: 640px;">
+      <div class="modal-header">
+        <h2 class="modal-title">🔍 Verificador API Consulado La Habana</h2>
+        <button class="modal-close" onclick="cerrarModalHabana()">&times;</button>
+      </div>
+
+      <!-- Banner de Modo en Verificador -->
+      <div id="banner-modo-habana" class="modo-alerta-banner" style="margin: 0 24px 12px 24px;"></div>
+
+      <!-- Barra de Pestañas del Modal -->
+      <div style="display: flex; gap: 8px; padding: 0 24px 12px 24px; border-bottom: 1px solid var(--border-subtle);">
+        <button id="tab-habana-btn-individual" class="btn btn-secondary" onclick="cambiarTabHabana('individual')" style="flex: 1; padding: 7px 12px; font-size: 0.80rem; border-color: var(--accent-cyan); color: var(--accent-cyan);">
+          🔍 Consulta Individual
+        </button>
+        <button id="tab-habana-btn-lote" class="btn btn-secondary" onclick="cambiarTabHabana('lote')" style="flex: 1; padding: 7px 12px; font-size: 0.80rem;">
+          ⚡ Verificación por Lote (Masiva)
+        </button>
+      </div>
+
+      <div class="modal-body">
+        
+        <!-- PESTAÑA 1: CONSULTA INDIVIDUAL -->
+        <div id="habana-tab-individual">
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label">Seleccionar Expediente Calificado:</label>
+            <select id="habana-select-expediente" class="form-select" style="font-size: 0.82rem;">
+              <!-- Inyectado dinámicamente con expedientes calificados -->
+            </select>
+            <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 4px;">
+              * Solo muestra expedientes de La Habana en Pendiente Resolución con formato oficial DDMMYY-NNN.
+            </div>
+          </div>
+
+          <div id="habana-resultado-contenedor" style="background: var(--bg-card-elevated); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <h4 style="color: var(--accent-cyan); font-size: 0.90rem; margin: 0;">Resultado Oficial del Consulado</h4>
+              <span id="habana-resultado-badge" class="badge">CONSULTANDO</span>
+            </div>
+            <div id="habana-resultado-texto" style="font-size: 0.82rem; line-height: 1.6;"></div>
+          </div>
+        </div>
+
+        <!-- PESTAÑA 2: VERIFICACIÓN POR LOTE (MASIVA) -->
+        <div id="habana-tab-lote" style="display: none;">
+          <div id="habana-lote-resumen-banner" style="padding: 10px 14px; border-radius: var(--radius-md); background: rgba(34, 211, 238, 0.12); border: 1px solid rgba(34, 211, 238, 0.3); font-size: 0.80rem; margin-bottom: 12px;">
+            📋 <strong>Expedientes Calificados:</strong> <span id="habana-lote-total-badge">0</span> listos para verificación con la API oficial.
+          </div>
+
+          <!-- Barra de Progreso -->
+          <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.76rem; color: var(--text-muted); margin-bottom: 4px;">
+              <span id="habana-progreso-texto">Progreso: 0 de 0 (0%)</span>
+              <span id="habana-progreso-estado">En espera</span>
+            </div>
+            <div style="background: var(--bg-card-elevated); height: 10px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border-subtle);">
+              <div id="habana-progreso-bar" style="height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green)); transition: width 0.25s ease;"></div>
+            </div>
+          </div>
+
+          <!-- Cuadrícula de Estadísticas en Vivo (Botones Interactivos Filtrables con regla > 0) -->
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px;">
+            <button type="button" id="btn-habana-stat-favorables" class="habana-stat-card-btn" onclick="filtrarInspectorHabana('aprobados')" disabled style="background: var(--bg-card-elevated); padding: 8px; border-radius: var(--radius-sm); text-align: center; border: 1px solid transparent; border-left: 3px solid var(--accent-green); cursor: default; opacity: 0.55; transition: all 0.2s; width: 100%;">
+              <div style="font-size: 0.66rem; color: var(--text-dim); text-transform: uppercase;">Aprobados</div>
+              <strong id="habana-stat-favorables" style="font-size: 1.05rem; color: var(--accent-green); display: block;">0</strong>
+            </button>
+            <button type="button" id="btn-habana-stat-tramite" class="habana-stat-card-btn" onclick="filtrarInspectorHabana('enTramite')" disabled style="background: var(--bg-card-elevated); padding: 8px; border-radius: var(--radius-sm); text-align: center; border: 1px solid transparent; border-left: 3px solid var(--accent-gold); cursor: default; opacity: 0.55; transition: all 0.2s; width: 100%;">
+              <div style="font-size: 0.66rem; color: var(--text-dim); text-transform: uppercase;">En Trámite</div>
+              <strong id="habana-stat-tramite" style="font-size: 1.05rem; color: var(--accent-gold); display: block;">0</strong>
+            </button>
+            <button type="button" id="btn-habana-stat-nohallados" class="habana-stat-card-btn" onclick="filtrarInspectorHabana('noHallados')" disabled style="background: var(--bg-card-elevated); padding: 8px; border-radius: var(--radius-sm); text-align: center; border: 1px solid transparent; border-left: 3px solid #94A3B8; cursor: default; opacity: 0.55; transition: all 0.2s; width: 100%;">
+              <div style="font-size: 0.66rem; color: var(--text-dim); text-transform: uppercase;">No Hallados</div>
+              <strong id="habana-stat-nohallados" style="font-size: 1.05rem; color: #94A3B8; display: block;">0</strong>
+            </button>
+            <button type="button" id="btn-habana-stat-errores" class="habana-stat-card-btn" onclick="filtrarInspectorHabana('errores')" disabled style="background: var(--bg-card-elevated); padding: 8px; border-radius: var(--radius-sm); text-align: center; border: 1px solid transparent; border-left: 3px solid var(--accent-red); cursor: default; opacity: 0.55; transition: all 0.2s; width: 100%;">
+              <div style="font-size: 0.66rem; color: var(--text-dim); text-transform: uppercase;">Errores</div>
+              <strong id="habana-stat-errores" style="font-size: 1.05rem; color: var(--accent-red); display: block;">0</strong>
+            </button>
+          </div>
+
+          <!-- Contenedor 1: Consola Terminal en Vivo -->
+          <div id="habana-batch-console" style="background: #080D1A; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 12px; height: 185px; overflow-y: auto; font-family: monospace; font-size: 0.74rem; line-height: 1.4; color: #A7F3D0;">
+            <div style="color: var(--text-dim);">[SISTEMA] Listo para iniciar verificación masiva...</div>
+          </div>
+
+          <!-- Contenedor 2: Monitor Auxiliar Inspector de Resultados en Vivo (Drill-Down) -->
+          <div id="habana-inspector-container" style="display: none; background: #080D1A; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 12px; height: 185px; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px;">
+              <span id="habana-inspector-titulo" style="font-size: 0.78rem; font-weight: 700; color: #38BDF8;">📋 Expedientes</span>
+              <button type="button" class="btn btn-sm btn-secondary" onclick="mostrarConsolaHabana()" style="font-size: 0.70rem; padding: 2px 10px; color: var(--accent-cyan); border-color: rgba(56, 189, 248, 0.3);">
+                🖥️ Volver a Consola
+              </button>
+            </div>
+            <div id="habana-inspector-lista">
+              <!-- Inyectado dinámicamente -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="cerrarModalHabana()">Cerrar</button>
+        <button type="button" id="btn-consultar-habana-ind" class="btn btn-primary" onclick="consultarHabanaIndividualDesdeUI()">
+          🔍 Consultar en Directo
+        </button>
+        <button type="button" id="btn-habana-batch-iniciar" class="btn btn-primary" onclick="iniciarVerificacionLoteHabana()" style="display: none; background: linear-gradient(135deg, var(--accent-cyan), #0284C7);">
+          🚀 Iniciar Verificación Automática
+        </button>
+        <button type="button" id="btn-habana-batch-detener" class="btn btn-secondary" onclick="detenerVerificacionLoteHabana()" style="display: none; color: var(--accent-red); border-color: var(--accent-red);">
+          ⏹️ Detener
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =============================================================================
+       MODAL 5: CREACIÓN Y EDICIÓN DE USUARIOS DEL SISTEMA (RBAC)
+  ============================================================================= -->
+  <div id="modal-usuario" class="modal-backdrop">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-usuario-title">Crear Nuevo Usuario</h2>
+        <button class="modal-close" onclick="cerrarModalUsuario()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <form id="form-usuario-modal" class="form-grid">
+          <input type="hidden" id="usr-id">
+
+          <div class="form-group full">
+            <label class="form-label" for="usr-nombre">Nombre Completo</label>
+            <input type="text" id="usr-nombre" class="form-input" placeholder="Ej: Dra. María Pérez" required>
+          </div>
+
+          <div class="form-group full">
+            <label class="form-label" for="usr-email">Correo Electrónico (Email)</label>
+            <input type="email" id="usr-email" class="form-input" placeholder="maria@estelamarina.com" required>
+          </div>
+
+          <div class="form-group full">
+            <label class="form-label" for="usr-password">Contraseña</label>
+            <input type="password" id="usr-password" class="form-input" placeholder="••••••••••••">
+            <div id="modal-usuario-pass-help" style="font-size: 0.72rem; color: var(--text-dim); margin-top: 3px;">
+              Cifrada automáticamente con Bcrypt (coste 12).
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="usr-rol">Nivel de Acceso (Rol)</label>
+            <select id="usr-rol" class="form-select" required>
+              <option value="admin">👑 Administrador (Total)</option>
+              <option value="operador" selected>⚡ Operador (Expedientes/Citas)</option>
+              <option value="consultor">👁️ Consultor (Solo Lectura)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="usr-estado">Estado de Cuenta</label>
+            <select id="usr-estado" class="form-select" required>
+              <option value="activo" selected>🟢 Activo</option>
+              <option value="inactivo">🔴 Inactivo</option>
+            </select>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="cerrarModalUsuario()">Cancelar</button>
+        <button type="button" id="btn-guardar-usuario" class="btn btn-primary" onclick="guardarUsuarioModal()">
+          Guardar Usuario
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =============================================================================
+       MODAL 6: BLOQUEO POR INACTIVIDAD (2 HORAS) — LOCK SCREEN
+  ============================================================================= -->
+  <div id="modal-lock-screen" class="modal-backdrop" style="background: rgba(4, 6, 10, 0.95); backdrop-filter: blur(28px); z-index: 9999999;">
+    <div class="modal-dialog" style="max-width: 400px; text-align: center; border: 1px solid rgba(212, 175, 55, 0.3); box-shadow: 0 20px 60px rgba(0,0,0,0.9), 0 0 40px rgba(212, 175, 55, 0.15);">
+      <div style="padding: 28px 24px 20px 24px;">
+        <div id="lock-user-avatar" class="user-avatar" style="width: 60px; height: 60px; font-size: 1.4rem; margin: 0 auto 12px auto; box-shadow: 0 4px 16px rgba(0,0,0,0.5);">
+          EM
+        </div>
+        <h3 id="lock-user-name" style="font-size: 1.15rem; font-weight: 700; color: #FFFFFF; margin: 0 0 4px 0;">Administrador</h3>
+        <div id="lock-user-email" style="font-size: 0.80rem; color: var(--text-dim); margin-bottom: 16px; font-family: monospace;">admin@estelamarina.com</div>
+        
+        <div class="login-security-badge" style="margin-bottom: 20px;">
+          <span>🔒</span> Sesión en Pausa por Inactividad
+        </div>
+
+        <form id="form-unlock-screen">
+          <div class="login-form-group" style="text-align: left;">
+            <label class="login-form-label" for="unlock-password">Introduce tu Contraseña</label>
+            <div class="login-input-wrapper">
+              <span class="login-input-icon">🔐</span>
+              <input type="password" 
+                     id="unlock-password" 
+                     class="login-input-field" 
+                     placeholder="••••••••••••" 
+                     required 
+                     autocomplete="current-password">
+            </div>
+          </div>
+          <button type="submit" id="btn-unlock-submit" class="login-submit-btn" style="margin-top: 10px;">
+            Desbloquear Sesión
+          </button>
+        </form>
+
+        <div style="margin-top: 16px;">
+          <a href="#" onclick="API.logout()" style="font-size: 0.76rem; color: var(--accent-red); text-decoration: none;">
+            ¿Cambiar de cuenta? Cerrar sesión
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SCRIPTS Y ARQUITECTURA MODULAR (SPA POR RUTAS)
+  ───────────────────────────────────────────── -->
+  <script src="config.js?v=6.5.8"></script>
+  <script src="js/state.js?v=6.5.8"></script>
+  <script src="js/api.js?v=6.5.8"></script>
+  <script src="js/router.js?v=6.5.8"></script>
+  
+  <!-- Componentes Compartidos -->
+  <script src="js/components/toast.js?v=6.5.8"></script>
+  <script src="js/components/lockScreen.js?v=6.5.8"></script>
+  <script src="js/components/confirmModal.js?v=6.5.8"></script>
+  <script src="js/components/modalExpediente.js?v=6.5.8"></script>
+  <script src="js/components/modalAutomatizaciones.js?v=6.5.8"></script>
+
+  <!-- Vistas de la Aplicación -->
+  <script src="js/views/loginView.js?v=6.5.8"></script>
+  <script src="js/views/dashboardView.js?v=6.5.8"></script>
+  <script src="js/views/expedientesView.js?v=6.5.8"></script>
+  <script src="js/views/habanaView.js?v=6.5.8"></script>
+  <script src="js/views/rccView.js?v=6.5.8"></script>
+  <script src="js/views/citasView.js?v=6.5.8"></script>
+  <script src="js/views/automatizacionesView.js?v=6.5.8"></script>
+  <script src="js/views/configuracionView.js?v=6.5.8"></script>
+  <script src="js/views/logsView.js?v=6.5.8"></script>
+
+  <!-- Entrada Principal y Bootstrap -->
+  <script src="js/main.js?v=6.5.8"></script>
+</body>
+</html>

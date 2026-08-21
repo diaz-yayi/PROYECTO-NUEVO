@@ -1,0 +1,5 @@
+playwright>=1.40.0
+SpeechRecognition>=3.10.0
+imageio-ffmpeg>=0.4.9
+requests>=2.31.0
+openai-whisper>=20231117

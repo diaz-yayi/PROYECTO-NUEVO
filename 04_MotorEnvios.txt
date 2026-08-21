@@ -1,0 +1,306 @@
+// ==========================================
+// MÓDULO 04: MOTOR DE ENVÍOS (CON PAGINACIÓN, LOGS Y SANDBOX AUTÓNOMO)
+// ==========================================
+
+function procesarNotificacionesLMD() {
+  const startTime = Date.now();
+  const MAX_EXECUTION_TIME = 270000; // 4.5 minutos
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) return null;
+
+  const dataRange = sheet.getDataRange();
+  const data = dataRange.getValues();
+  const richData = dataRange.getRichTextValues(); 
+  
+  const hoy = new Date();
+  
+  // Memoria del sistema (Bóveda)
+  const props = PropertiesService.getDocumentProperties();
+  let startRow = parseInt(props.getProperty('LAST_ROW_ENVIOS'), 10) || 1;
+  let enviados = parseInt(props.getProperty('ENVIADOS_REALES'), 10) || 0;
+  
+  let conteoSimulacro = JSON.parse(props.getProperty('CONTEO_SIMULACRO') || '{}');
+  let muestrasSimulacro = JSON.parse(props.getProperty('MUESTRAS_SIMULACRO') || '{}');
+  let totalSimulacro = parseInt(props.getProperty('TOTAL_SIMULACRO'), 10) || 0;
+  let clientesProcesados = [];
+
+  // Variables del Termómetro Consular
+  const termometroHabana = props.getProperty('TERMOMETRO_HABANA') || "";
+  const termometroMiami = props.getProperty('TERMOMETRO_MIAMI') || "";
+
+  const estadosTerminales = ["RESUELTO FAVORABLE", "RESUELTO DENEGADO", "RESUELTO", "NO PRESENTADO", "RECURSO FAVORABLE", "RECURSO DENEGADO"];
+  const estadosFinalesRecurso = ["RECURSO FAVORABLE", "RECURSO DENEGADO"];
+
+  const modoPrueba = getConfig("MODO_PRUEBA");
+  const emailPrueba = getConfig("EMAIL_PRUEBA");
+
+  // Configuración de tiempos para evaluación autónoma en modo simulacro
+  const cicloTramites = getConfig("DIAS_CICLO_TRAMITES");
+  const cicloSeguimiento = getConfig("DIAS_CICLO_SEGUIMIENTO");
+  const carenciaResolucion = getConfig("DIAS_CARENCIA_RESOLUCION");
+  const mapaVerificacion = _me_construirMapaVerificacion(ss);
+
+  if (startRow === 1) {
+    console.log(`🚀 Iniciando Motor de Envíos. Filas a evaluar: ${data.length - 1}. Modo Prueba: ${modoPrueba ? "ACTIVO" : "INACTIVO"}`);
+  } else {
+    console.log(`🔄 Reanudando Motor de Envíos desde la fila ${startRow}...`);
+  }
+
+  let pausado = false;
+
+  for (let i = startRow; i < data.length; i++) {
+    
+    // --- ESCUDO DE TIEMPO (PARACAÍDAS) ---
+    if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+      console.log(`⚠️ ALERTA: Límite de 4.5 min alcanzado en la Fila ${i}. Guardando Checkpoint.`);
+      
+      props.setProperty('LAST_ROW_ENVIOS', i.toString());
+      props.setProperty('ENVIADOS_REALES', enviados.toString());
+      props.setProperty('CONTEO_SIMULACRO', JSON.stringify(conteoSimulacro));
+      props.setProperty('MUESTRAS_SIMULACRO', JSON.stringify(muestrasSimulacro));
+      props.setProperty('TOTAL_SIMULACRO', totalSimulacro.toString());
+
+      const oldTriggerId = props.getProperty('TEMP_TRIGGER_ENVIOS');
+      if (oldTriggerId) {
+        ScriptApp.getProjectTriggers().forEach(t => {
+          if (t.getUniqueId() === oldTriggerId) ScriptApp.deleteTrigger(t);
+        });
+      }
+
+      const newTrigger = ScriptApp.newTrigger('procesarNotificacionesLMD').timeBased().after(60 * 1000).create();
+      props.setProperty('TEMP_TRIGGER_ENVIOS', newTrigger.getUniqueId());
+      
+      pausado = true;
+      break;
+    }
+    // ------------------------------------
+
+    const nombre = String(data[i][0]).trim();
+    const apellido = String(data[i][1]).trim();
+    const consulado = String(data[i][2]).trim(); // Columna C (Consulado)
+    const correoCreado = String(data[i][3]).trim().toLowerCase(); 
+    const estado = String(data[i][5]).trim().toUpperCase();
+    const detalle = String(data[i][6]).trim(); // Columna G (Detalle)
+    const id = String(data[i][8]).trim();
+    const emailCliente = extraerEmailReal(data[i][9], richData[i][9]); 
+    const notificado = String(data[i][10]).trim().toUpperCase();
+    const fechaUltimaRaw = data[i][11]; 
+    const baja = String(data[i][12]).trim().toUpperCase();
+    const nombreCompleto = nombre + " " + apellido;
+
+    if (!emailCliente.includes("@") || baja === "SI") continue;
+    
+    const esCorreoPersonal = correoCreado.includes("correo personal");
+    const esEstadoFinal = estadosTerminales.includes(estado);
+    const esEstadoFinalDeRecurso = estadosFinalesRecurso.includes(estado);
+
+    if (esCorreoPersonal && esEstadoFinal && !esEstadoFinalDeRecurso) {
+      if (notificado !== "SI") {
+        if (!modoPrueba) {
+          sheet.getRange(i + 1, 11).setValue("SI"); 
+          registrarLog(id, nombreCompleto, emailCliente, "Bloqueado (Correo Personal)", `Estado: ${estado} notificado por cliente.`);
+          console.log(`[FILA ${i+1}] | ID: ${id} | ${emailCliente} : 🛑 Acción -> BLOQUEADO (Correo Personal).`);
+        }
+      }
+      continue;
+    }
+
+    let enviarHoy = false;
+
+    if (!modoPrueba) {
+      // --- LÓGICA DE PRODUCCIÓN (BASADA EN CELDAS) ---
+      if (esEstadoFinal && notificado !== "SI") enviarHoy = true;
+      else if (!esEstadoFinal && notificado === "NO") enviarHoy = true;
+    } else {
+      // --- LÓGICA DE MODO PRUEBA / SANDBOX AUTÓNOMO ---
+      // Si la celda ya tiene NO o no está notificado en estado final
+      if (esEstadoFinal && notificado !== "SI") {
+        enviarHoy = true;
+      } else if (!esEstadoFinal && notificado === "NO") {
+        enviarHoy = true;
+      } else {
+        // Evaluación cronológica autónoma en memoria (sin requerir que se haya editado la hoja)
+        let fechaUltima = (fechaUltimaRaw && fechaUltimaRaw instanceof Date) ? fechaUltimaRaw : null;
+        let diasTranscurridos = fechaUltima ? Math.floor((hoy - fechaUltima) / (1000 * 60 * 60 * 24)) : 9999;
+
+        if (estado === "PENDIENTE DE CITA" || estado === "PENDIENTE DE CREDENCIALES") {
+          if (diasTranscurridos >= cicloTramites) enviarHoy = true;
+        } 
+        else if (estado === "RECURSO PRESENTADO") {
+          if (diasTranscurridos >= cicloSeguimiento) enviarHoy = true;
+        }
+        else if (estado === "PENDIENTE RESOLUCION") {
+          let fechaCita = extraerFechaDeDetalle(detalle);
+          let carenciaSuperada = true; 
+          if (fechaCita) {
+            let diasDesdeCita = Math.floor((hoy - fechaCita) / (1000 * 60 * 60 * 24));
+            if (diasDesdeCita < carenciaResolucion) carenciaSuperada = false;
+          }
+          if (carenciaSuperada && diasTranscurridos >= cicloSeguimiento) enviarHoy = true;
+        }
+        else if (estado === "RESUELTO" && consulado.toUpperCase().includes("HABANA")) {
+          const datosVerif = mapaVerificacion[id];
+          if (datosVerif && datosVerif.ok && datosVerif.fechaResolucion) {
+            if (diasTranscurridos >= cicloSeguimiento) enviarHoy = true;
+          }
+        }
+      }
+    }
+
+    if (enviarHoy) {
+      const estadoParaPlantilla = (esCorreoPersonal && !esEstadoFinal) ? "CORREO_PERSONAL_PENDIENTE" : estado;
+      
+      // Empaquetamos el contexto para la plantilla (incluye identificador para verificación)
+      const contexto = {
+        consulado: consulado,
+        detalle: detalle,
+        identificador: id,
+        termometroHabana: termometroHabana,
+        termometroMiami: termometroMiami
+      };
+      
+      if (modoPrueba) {
+        conteoSimulacro[estado] = (conteoSimulacro[estado] || 0) + 1;
+        totalSimulacro++;
+        clientesProcesados.push({ id: id, nombre: nombreCompleto, email: emailCliente, estado: estado, modo: 'Simulacro' });
+        console.log(`[FILA ${i+1}] | ID: ${id} | ${emailCliente} : 🟡 Acción -> SIMULACRO PREPARADO (${estado}).`);
+        
+        if (!muestrasSimulacro[estado]) {
+          const token = generarToken(id, emailCliente);
+          muestrasSimulacro[estado] = {
+            nombre: nombre, emailOriginal: emailCliente, estadoPlantilla: estadoParaPlantilla,
+            enlaceBaja: `${WEB_APP_URL}?id=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`,
+            contexto: contexto
+          };
+        }
+      } else {
+        const token = generarToken(id, emailCliente);
+        const enlaceBaja = `${WEB_APP_URL}?id=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`;
+        const plantilla = obtenerPlantillaHTML(nombre, estadoParaPlantilla, enlaceBaja, contexto);
+
+        if (plantilla) {
+          try {
+            GmailApp.sendEmail(emailCliente, plantilla.asunto, "", {
+              htmlBody: plantilla.cuerpo, from: REMITENTE, replyTo: RESPONDER_A, name: SENDER_NAME
+            });
+            sheet.getRange(i + 1, 11).setValue("SI");
+            sheet.getRange(i + 1, 12).setValue(hoy);
+            enviados++;
+            clientesProcesados.push({ id: id, nombre: nombreCompleto, email: emailCliente, estado: estado, modo: 'Real' });
+            registrarLog(id, nombreCompleto, emailCliente, "Notificación Enviada", `Estado: ${estado}`);
+            console.log(`[FILA ${i+1}] | ID: ${id} | ${emailCliente} : 🟢 Acción -> CORREO ENVIADO CON ÉXITO.`);
+          } catch (e) {
+            registrarLog(id, nombreCompleto, emailCliente, "Error de Envío", e.message);
+            console.error(`[FILA ${i+1}] | ID: ${id} | ${emailCliente} : 🔴 Acción -> ERROR DE ENVÍO (${e.message}).`);
+          }
+        }
+      }
+    }
+  }
+
+  // --- EJECUCIÓN FINAL (SÓLO SI NO HUBO PAUSAS) ---
+  if (!pausado) {
+    console.log(`✅ Proceso del Motor de Envíos completado al 100%. Limpiando memoria.`);
+    
+    // Envíos de Reporte y Muestras de Sandbox
+    if (modoPrueba && totalSimulacro > 0) {
+      for (let estado in muestrasSimulacro) {
+        let datos = muestrasSimulacro[estado];
+        let plantilla = obtenerPlantillaHTML(datos.nombre, datos.estadoPlantilla, datos.enlaceBaja, datos.contexto);
+        
+        if (plantilla) {
+          const colorOro = getConfig("COLOR_ORO") || "#D4AF37";
+          let etiquetaAviso = `
+            <div style="background-color: #000000; color: ${colorOro}; padding: 14px 18px; text-align: center; border-radius: 6px; font-family: Arial, sans-serif; margin-bottom: 20px; border-left: 4px solid ${colorOro};">
+              <span style="background-color: ${colorOro}; color: #000000; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; letter-spacing: 0.5px; display: inline-block;">SIMULACRO ACTIVO</span>
+              <div style="margin-top: 8px; font-size: 13px; color: #ffffff;">Aviso de prueba interna — Destinatario(s) original(es): <strong style="color: ${colorOro};">${datos.emailOriginal}</strong></div>
+            </div>`;
+          GmailApp.sendEmail(emailPrueba, `[SIMULACRO: ${estado}] ${plantilla.asunto}`, "", {
+            htmlBody: etiquetaAviso + plantilla.cuerpo, from: REMITENTE, replyTo: RESPONDER_A, name: SENDER_NAME
+          });
+        }
+      }
+      // Reporte de mando Sandbox
+      const colorOroReporte = getConfig("COLOR_ORO") || "#D4AF37";
+      let reporteHTML = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333333;">
+          <div style="margin-bottom: 15px;">
+            <span style="background-color: #000000; color: ${colorOroReporte}; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;">REPORTE DE MANDO</span>
+          </div>
+          <h2 style="margin-top: 0; color: #000000; font-size: 18px;">Simulacro de Envíos LMD</h2>
+          <p>El sistema ha evaluado toda la base de datos <strong>sin modificar ningún expediente</strong>.</p>
+          <p>Si esto fuera producción (MODO_PRUEBA = false), se habrían enviado un total de <strong>${totalSimulacro}</strong> correos distribuidos de la siguiente forma:</p>
+          <ul style="line-height: 1.8;">`;
+      for (let est in conteoSimulacro) { 
+        reporteHTML += `<li><strong>${est}:</strong> ${conteoSimulacro[est]} expediente(s)</li>`; 
+      }
+      reporteHTML += `
+          </ul>
+          <p style="font-size: 12px; color: #777777; margin-top: 20px;"><em>* Se ha enviado a esta bandeja un correo de muestra por cada estado detectado hoy para validar el diseño.</em></p>
+        </div>`;
+
+      GmailApp.sendEmail(emailPrueba, `[REPORTE SIMULACRO] - LMD enviaría ${totalSimulacro} correos hoy`, "", {
+        htmlBody: reporteHTML, from: REMITENTE, replyTo: RESPONDER_A, name: SENDER_NAME
+      });
+    }
+
+    // Limpiar Bóveda
+    const keysToDelete = ['LAST_ROW_ENVIOS', 'ENVIADOS_REALES', 'CONTEO_SIMULACRO', 'MUESTRAS_SIMULACRO', 'TOTAL_SIMULACRO', 'CLIENTES_PROCESADOS'];
+    keysToDelete.forEach(k => props.deleteProperty(k));
+    
+    const oldTriggerId = props.getProperty('TEMP_TRIGGER_ENVIOS');
+    if (oldTriggerId) {
+      ScriptApp.getProjectTriggers().forEach(t => {
+        if (t.getUniqueId() === oldTriggerId) ScriptApp.deleteTrigger(t);
+      });
+      props.deleteProperty('TEMP_TRIGGER_ENVIOS');
+    }
+  }
+
+  return {
+    ok: true,
+    tipo: 'envio',
+    prueba: modoPrueba,
+    enviados: enviados,
+    simulacro: totalSimulacro,
+    desglose: conteoSimulacro,
+    emailDestino: emailPrueba,
+    evaluados: data.length > 1 ? data.length - 1 : 0,
+    clientes: clientesProcesados,
+    pausado: pausado
+  };
+}
+
+/**
+ * Pre-construye el mapa de verificación consular para uso interno del motor de envíos.
+ */
+function _me_construirMapaVerificacion(ss) {
+  const mapa = {};
+  const sheetVerif = ss.getSheetByName("VERIFICACION_CONSULAR");
+  if (!sheetVerif) return mapa;
+
+  const lastRow = sheetVerif.getLastRow();
+  if (lastRow < 2) return mapa;
+
+  const data = sheetVerif.getRange(2, 1, lastRow - 1, 13).getValues();
+  data.forEach(row => {
+    const id          = String(row[3] || '').trim();
+    const fResolucion = String(row[8] || '').trim();
+    const fInscripcion= String(row[9] || '').trim();
+    const datosReg    = String(row[10] || '').trim();
+    const resultado   = String(row[11] || '').trim();
+
+    if (id) {
+      mapa[id] = {
+        ok: (resultado === "OK"),
+        fechaResolucion: fResolucion,
+        fechaInscripcion: fInscripcion,
+        datosRegistrales: datosReg
+      };
+    }
+  });
+
+  return mapa;
+}

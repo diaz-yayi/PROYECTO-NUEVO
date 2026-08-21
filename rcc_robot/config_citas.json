@@ -1,0 +1,33 @@
+{
+  "TELEGRAM_BOT_TOKEN": "8786592625:AAGMvMDtD7TTk-qmgn0CFttPzOjLEaMq7YQ",
+  "TELEGRAM_CHAT_ID": "770388568",
+  "PAUSA_MINIMA_SEGUNDOS": 45,
+  "PAUSA_MAXIMA_SEGUNDOS": 80,
+  "SONIDO_ALARMA": true,
+  "CONSULADOS_LMD": [
+    {
+      "nombre": "SAN FRANCISCO",
+      "tramite": "Ley de Memoria Democrática (LMD)",
+      "url": "https://www.citaconsular.es/es/hosteds/widgetdefault/2d7c60f44f450863fb149b64fdd4b74a1/#services",
+      "activo": true
+    },
+    {
+      "nombre": "LA HABANA",
+      "tramite": "Ley de Memoria Democrática (LMD)",
+      "url": "https://www.citaconsular.es/es/hosteds/widgetdefault/28330379fc95acafd31ee9e8938c278ff",
+      "activo": true
+    },
+    {
+      "nombre": "MIAMI",
+      "tramite": "Ley de Memoria Democrática (LMD)",
+      "url": "https://www.citaconsular.es/es/hosteds/widgetdefault/2533f04b1d3e818b66f175afc9c24cf63",
+      "activo": true
+    },
+    {
+      "nombre": "LOS ANGELES",
+      "tramite": "Ley de Memoria Democrática (LMD)",
+      "url": "https://www.citaconsular.es/es/hosteds/widgetdefault/2244a1a71808fe950abb503cd46c2e517",
+      "activo": true
+    }
+  ]
+}

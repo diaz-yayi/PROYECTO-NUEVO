@@ -1,0 +1,282 @@
+// ==========================================
+// MÓDULO 06: PLANTILLAS Y DISEÑO
+// ==========================================
+
+function obtenerPlantillaHTML(nombre, estado, enlaceBaja, contexto = {}) {
+  // Leemos colores en tiempo real
+  const fondo = getConfig("COLOR_FONDO");
+  const oro = getConfig("COLOR_ORO");
+  const texto = getConfig("COLOR_TEXTO");
+  const logoUrl = getConfig("URL_LOGO_PUBLICO");
+
+  let asunto = "";
+  let cuerpoMensaje = "";
+  let mostrarBaja = true;
+
+  switch (estado) {
+    case "CORREO_PERSONAL_PENDIENTE":
+      asunto = "Seguimiento de tu expediente LMD y revisión de comunicaciones oficiales";
+      cuerpoMensaje = `<p>Hola <strong>${nombre}</strong>, ¿cómo va todo?</p><p>Te contactamos para hacerte una breve actualización sobre tu expediente de nacionalidad bajo la Ley de Memoria Democrática. Como tu trámite fue presentado vinculando tu dirección de correo electrónico personal, cualquier requerimiento o resolución oficial por parte de las autoridades será enviada directamente a tu bandeja de entrada.</p><p>Por nuestra parte, seguimos supervisando el estado general de tu caso. Sin embargo, para que podamos brindarte el mejor respaldo, <strong>es fundamental que revises tu correo con frecuencia (incluyendo la carpeta de Spam o Correo no deseado)</strong>.</p><p>Si recibes cualquier notificación, citación o requerimiento del consulado o registro civil, por favor reenvíanoslo de inmediato a <strong>${RESPONDER_A}</strong> para que podamos asesorarte sobre los siguientes pasos. ¡Trabajando en equipo aseguraremos el éxito de tu trámite!</p>`;
+      break;
+    case "PENDIENTE RESOLUCION":
+      asunto = "Seguimiento activo de tu solicitud de nacionalidad LMD";
+      cuerpoMensaje = `<p>Hola <strong>${nombre}</strong>, ¿cómo va todo?</p><p>Te enviamos esta comunicación para mantenerte al tanto del estado de tu solicitud bajo la Ley de Memoria Democrática. Tu expediente se encuentra debidamente presentado y sigue su curso legal de calificación ante las autoridades correspondientes.</p><p>Queremos que tengas la certeza de que tu trámite está supervisado y en nuestras manos. Dado que estos procesos tienen tiempos de resolución largos por el volumen de expedientes, continuamos revisando tu caso de forma periódica. Nos pondremos en contacto contigo de inmediato en cuanto recibamos alguna resolución oficial o requerimiento.</p>`;
+      break;
+    case "PENDIENTE DE CITA":
+      // Lógica Dinámica: Verificamos si la celda empieza con la palabra mágica
+      if (contexto.detalle && contexto.detalle.toUpperCase().startsWith("CITA PROGRAMADA")) {
+        // Extraemos solo la fecha quitando la palabra clave
+        let fechaCitaTexto = contexto.detalle.substring(15).trim();
+        asunto = "Seguimiento continuo de tu caso: Tu cita está asegurada";
+        cuerpoMensaje = `<p>Hola <strong>${nombre}</strong>,</p><p>Te enviamos esta breve actualización periódica para darte total tranquilidad sobre tu proceso de Ley de Memoria Democrática.</p><p>Queremos recordarte que tu cita consular sigue firmemente programada para el <strong>${fechaCitaTexto}</strong>. Sabemos que los tiempos de espera pueden parecer largos, pero todo avanza exactamente como debería.</p><p>Nosotros seguimos vigilando tu expediente de cerca. No tienes que preocuparte por nada; te avisaremos oportunamente cuando llegue el momento de actuar.</p>`;
+      } else {
+        // Texto original de gestión de cita
+        asunto = "Estado de tu trámite LMD - Gestión de cita";
+        cuerpoMensaje = `<p>¡Hola <strong>${nombre}</strong>!</p><p>Te escribimos para confirmarte que tu expediente está completamente listo y validado por nuestro equipo.</p><p>Actualmente nos encontramos a la espera de que se habilite disponibilidad en la sede correspondiente para poder agendar tu cita, o bien, aguardando que nos confirmes tus fechas de preferencia. La apertura de agendas por parte de la administración suele ser intermitente, pero estamos monitoreando activamente la situación para asegurar tu presentación.</p><p>Tu gestión está segura con nosotros; te avisaremos enseguida al tener la confirmación.</p>`;
+      }
+      break;
+    case "PENDIENTE DE CREDENCIALES":
+      asunto = "Aviso importante sobre tu trámite LMD - Credenciales pendientes";
+      cuerpoMensaje = `<p>Hola <strong>${nombre}</strong>, esperamos que estés teniendo un buen día.</p><p>Te contactamos para recordarte que seguimos a la espera de las credenciales de acceso emitidas por las autoridades para poder avanzar con la gestión de tu cita.</p><p>Llevamos el control exacto de tu proceso y este es el paso que nos detiene en este momento. Si ya has recibido esta información o necesitas alguna información adicional, por favor escríbenos a <strong>${RESPONDER_A}</strong> y te responderemos lo antes posible.</p>`;
+      
+      // Lógica Dinámica: Inyección del Termómetro si aplica
+      let infoValor = "";
+      let consuladoUpper = (contexto.consulado || "").toUpperCase();
+      if (consuladoUpper.includes("HABANA") && contexto.termometroHabana) {
+        infoValor = obtenerBloqueValorHTML("La Habana", contexto.termometroHabana, oro);
+      } else if (consuladoUpper.includes("MIAMI") && contexto.termometroMiami) {
+        infoValor = obtenerBloqueValorHTML("Miami", contexto.termometroMiami, oro);
+      }
+      
+      if (infoValor !== "") {
+        cuerpoMensaje += infoValor;
+      }
+      break;
+    case "RECURSO PRESENTADO":
+      asunto = "Seguimiento de tu expediente LMD - Recurso en proceso";
+      cuerpoMensaje = `<p>Hola <strong>${nombre}</strong>, ¿cómo va todo?</p><p>Te escribimos para mantenerte al tanto del estado de tu expediente. Queremos confirmarte que el recurso legal que hemos interpuesto en tu nombre para defender tu caso sigue su curso de evaluación ante las autoridades correspondientes.</p><p>Nuestro equipo jurídico está monitoreando activamente el proceso. Sabemos que los tiempos de respuesta de la administración pueden ser extensos en esta fase, pero queremos que tengas la total tranquilidad de que tu trámite está respaldado y en nuestras manos.</p><p>En cuanto recibamos la resolución oficial, nos pondremos en contacto contigo de inmediato.</p>`;
+      break;
+    case "RECURSO FAVORABLE":
+      mostrarBaja = false;
+      asunto = "¡Excelentes noticias! Tu recurso LMD ha sido resuelto a favor 🎉";
+      cuerpoMensaje = `<p>¡Hola <strong>${nombre}</strong>!</p><p>Nos llena de inmensa alegría y orgullo informarte que, tras el recurso que presentamos para defender tu expediente de nacionalidad, las autoridades han revisado el caso y han fallado <strong>A TU FAVOR</strong>. ¡Hemos logrado revertir la decisión inicial!</p><p>Es una gran victoria para todo nuestro equipo haberte acompañado y respaldado hasta lograr este objetivo tan importante para ti y tu familia.</p><p>En un próximo correo nos pondremos en contacto contigo para indicarte con exactitud los detalles de tus datos registrales o las instrucciones finales para que puedas obtener tu documentación española.</p>`;
+      break;
+    case "RECURSO DENEGADO":
+      mostrarBaja = false;
+      asunto = "Información importante sobre la resolución de tu recurso LMD";
+      cuerpoMensaje = `<p>Hola <strong>${nombre}</strong>, esperamos que te encuentres bien.</p><p>Te contactamos para informarte que hemos recibido la resolución oficial por parte de las autoridades respecto al recurso que interpusimos en tu nombre y, lamentablemente, la decisión inicial ha sido mantenida, siendo el fallo <strong>no favorable</strong>.</p><p>Sabemos que no es la noticia que esperábamos, pero queremos recordarte que seguimos a tu lado y nuestro compromiso contigo no termina aquí. Por favor, comunícate con nosotros lo antes posible escribiendo a <strong>${RESPONDER_A}</strong> para que analicemos en detalle los fundamentos de esta respuesta y valoremos las siguientes vías legales disponibles para tu caso.</p><p>Seguimos respaldando tu caso y estamos aquí para apoyarte en cada paso.</p>`;
+      break;
+    case "RESUELTO FAVORABLE":
+      mostrarBaja = false;
+      asunto = "¡Excelentes noticias! Tu expediente LMD ha sido resuelto 🎉";
+      cuerpoMensaje = `<p>¡Hola <strong>${nombre}</strong>!</p><p>Nos llena de orgullo y alegría informarte que tu solicitud de nacionalidad bajo la Ley de Memoria Democrática ha sido <strong>RESUELTA FAVORABLEMENTE</strong> por las autoridades competentes. ¡Enhorabuena por este gran logro! Es un gran orgullo para nuestro equipo haber formado parte de esta victoria. Sabemos lo importante que es para ti y tu familia.</p><p>En un próximo correo nos pondremos en contacto contigo para indicarte con exactitud los detalles o las instrucciones finales para obtener tu documentación española.</p>`;
+      break;
+    case "RESUELTO DENEGADO":
+      mostrarBaja = false;
+      asunto = "Información importante sobre la resolución de tu expediente LMD";
+      cuerpoMensaje = `<p>Hola <strong>${nombre}</strong>, esperamos que te encuentres bien.</p><p>Te contactamos para informarte que hemos recibido la resolución oficial de tu expediente y, lamentablemente, ha sido dictaminada como <strong>no favorable</strong> por las autoridades.</p><p>Sin embargo, queremos recordarte que nuestro trabajo no termina aquí. Por favor, comunícate con nosotros a la mayor brevedad posible escribiendo a <strong>${RESPONDER_A}</strong> para que analicemos juntos los fundamentos jurídicos de esta decisión y activemos las vías de recurso correspondientes.</p><p>Seguimos respaldando tu caso y estamos aquí para apoyarte.</p>`;
+      break;
+    case "RESUELTO":
+      mostrarBaja = false;
+      asunto = "Aviso importante: Tu expediente LMD figura como resuelto";
+      cuerpoMensaje = `<p>Hola <strong>${nombre}</strong>, ¿cómo va todo?</p><p>Nos ponemos en contacto contigo porque, tras nuestras revisiones habituales, tenemos constancia de que tu expediente de nacionalidad ha pasado a estado "Resuelto" o "Concluido" por parte de las autoridades competentes.</p><p>No obstante, al día de hoy nuestro despacho no ha recibido la notificación oficial que nos confirme el sentido de dicha resolución (favorable o denegada). En muchas ocasiones, la administración envía esta comunicación directamente al domicilio o al correo personal del solicitante.</p><p>Por ello, te pedimos que estés muy atento a tus comunicaciones y, si ya has recibido la resolución oficial o tu certificación literal, nos la hagas llegar a <strong>${RESPONDER_A}</strong> para poder actualizar tu expediente y guiarte en los pasos definitivos.</p>`;
+      break;
+    case "NO PRESENTADO":
+      mostrarBaja = false;
+      asunto = "Aviso sobre el estado de tu expediente LMD";
+      cuerpoMensaje = `<p>Hola <strong>${nombre}</strong>.</p><p>Revisando el estado de nuestros clientes, vemos que tu expediente figura actualmente como "No presentado".</p><p>Queremos asegurarnos de que todo esté en orden. Si has tenido alguna dificultad para reunir la documentación o si necesitas nuestra intervención para reactivar el proceso y realizar la presentación oficial, escríbenos. Estamos a tu entera disposición para retomar el trámite cuando estés listo.</p>`;
+      break;
+    default:
+      return null;
+  }
+
+  // --- INYECCIÓN DEL RECUADRO DORADO DE VERIFICACIÓN CONSULAR (ESCUDO DOBLE: LA HABANA + DATOS VERIFICADOS) ---
+  const bloqueVerif = obtenerBloqueVerificacionConsularHTML(contexto, oro);
+  if (bloqueVerif) {
+    cuerpoMensaje += bloqueVerif;
+  }
+
+  const htmlTemplate = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body { background-color: ${fondo}; font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 15px; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+        .header { text-align: center; padding: 10px 0; background-color: #000000; border-bottom: 3px solid ${oro}; }
+        .content { padding: 30px 25px; color: ${texto}; line-height: 1.7; font-size: 15px; }
+        .footer { background-color: #fcfcfc; padding: 25px 25px; border-top: 1px solid #eeeeee; font-size: 12px; color: #777777; text-align: justify; }
+        a.unsubscribe { color: ${oro}; text-decoration: none; font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <img src="${logoUrl}" alt="Estela Marina" width="130" style="display: block; margin: 10px auto;">
+        </div>
+        <div class="content">
+          ${cuerpoMensaje}
+          <br><br>
+          Un saludo cordial,<br>
+          <strong>Equipo de Gestión de Expedientes LMD</strong>
+        </div>
+        <div class="footer">
+          Este es un mensaje generado automáticamente por nuestro sistema para mantenerte informado sobre el estado de tu expediente. Para cualquier consulta adicional, por favor escríbenos directamente a <strong>${RESPONDER_A}</strong>.
+          ${mostrarBaja ? `<br><br>Si no deseas recibir más actualizaciones automáticas sobre tu expediente, puedes <a href="${enlaceBaja}" class="unsubscribe">darte de baja haciendo clic aquí</a>.` : ''}
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+  return { asunto: asunto, cuerpo: htmlTemplate };
+}
+
+// ----------------------------------------------------------------------
+// FUNCIÓN AUXILIAR PARA FORMATEO DE FECHAS EN ESPAÑOL (DD/MM/AAAA)
+// ----------------------------------------------------------------------
+function _pe_formatearFechaEspanol(fechaVal) {
+  if (!fechaVal) return '';
+  if (fechaVal instanceof Date) {
+    return Utilities.formatDate(fechaVal, Session.getScriptTimeZone(), 'dd/MM/yyyy');
+  }
+  const s = String(fechaVal).trim();
+  // Caso ISO YYYY-MM-DD
+  const matchIso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (matchIso) {
+    const anio = matchIso[1];
+    const mes = matchIso[2].padStart(2, '0');
+    const dia = matchIso[3].padStart(2, '0');
+    return `${dia}/${mes}/${anio}`;
+  }
+  // Caso DD/MM/YYYY
+  const matchEs = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (matchEs) {
+    const dia = matchEs[1].padStart(2, '0');
+    const mes = matchEs[2].padStart(2, '0');
+    const anio = matchEs[3];
+    return `${dia}/${mes}/${anio}`;
+  }
+  // Si contiene fecha en texto como Wed Mar 26 2025...
+  const parsedDate = new Date(s);
+  if (!isNaN(parsedDate.getTime()) && parsedDate.getFullYear() > 1990) {
+    return Utilities.formatDate(parsedDate, Session.getScriptTimeZone(), 'dd/MM/yyyy');
+  }
+  return s;
+}
+
+// ----------------------------------------------------------------------
+// FUNCIÓN AUXILIAR PARA EL BLOQUE DE INFORMACIÓN (Termómetro)
+// ----------------------------------------------------------------------
+function obtenerBloqueValorHTML(ciudad, fecha, colorOro) {
+  const fechaFormateada = _pe_formatearFechaEspanol(fecha);
+  return `
+  <div style="background-color: #fcfcfc; border-left: 4px solid ${colorOro}; padding: 15px; margin-top: 25px; border-radius: 0 4px 4px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+    <p style="margin-top: 0; font-size: 14px; color: #333;">
+      <span style="background-color: #000000; color: ${colorOro}; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; letter-spacing: 0.5px; margin-right: 6px; display: inline-block; vertical-align: middle;">ESTIMACIÓN LMD</span>
+      <strong>Información de valor:</strong>
+    </p>
+    <p style="margin-bottom: 0; font-size: 14px; color: #444;">Basado exclusivamente en las estadísticas internas de los casos gestionados por Estela Marina, actualmente el Consulado de <strong>${ciudad}</strong> está procesando y entregando las credenciales de aquellos clientes que aplicaron aproximadamente el <strong>${fechaFormateada}</strong>.</p>
+    <p style="margin-bottom: 0; font-size: 12px; color: #888; margin-top: 12px; line-height: 1.4;"><em>(Nota: Tenga en cuenta que este es un dato de referencia propio de nuestro despacho para ayudarle a estimar los tiempos, y no representa un comunicado oficial del Consulado).</em></p>
+  </div>`;
+}
+
+/**
+ * Genera dinámicamente la Ficha Dorada de Verificación Consular para notificaciones.
+ * Escudo Doble: Solo se genera si consulado == "LA HABANA" Y existen datos confirmados en VERIFICACION_CONSULAR.
+ */
+function obtenerBloqueVerificacionConsularHTML(contexto, colorOro) {
+  if (!contexto || !contexto.consulado || !contexto.identificador) return "";
+  const consuladoUpper = String(contexto.consulado).toUpperCase();
+  if (!consuladoUpper.includes("HABANA")) return "";
+
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheetVerif = ss.getSheetByName("VERIFICACION_CONSULAR");
+    if (!sheetVerif) return "";
+
+    const lastRow = sheetVerif.getLastRow();
+    if (lastRow < 2) return "";
+
+    const data = sheetVerif.getRange(2, 1, lastRow - 1, 13).getValues();
+    let registro = null;
+    for (let r = 0; r < data.length; r++) {
+      if (String(data[r][3] || "").trim() === String(contexto.identificador).trim()) {
+        registro = data[r];
+        break;
+      }
+    }
+
+    if (!registro || String(registro[11] || "").trim() !== "OK") return "";
+
+    const estadoConsulado = String(registro[4] || "Aprobado / Resuelto").trim();
+    const fResolucion     = _pe_formatearFechaEspanol(registro[8]);
+    const fInscripcion    = _pe_formatearFechaEspanol(registro[9]);
+    const datosReg        = String(registro[10] || "").trim();
+
+    let html = `
+    <div style="background-color: #fcfcfc; border-left: 4px solid ${colorOro}; padding: 15px; margin-top: 25px; border-radius: 0 4px 4px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); font-family: Arial, sans-serif;">
+      <p style="margin-top: 0; font-size: 14px; color: #333; font-weight: bold;">
+        <span style="background-color: #000000; color: ${colorOro}; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; letter-spacing: 0.5px; margin-right: 6px; display: inline-block; vertical-align: middle;">VERIFICACIÓN OFICIAL</span>
+        Datos Verificados en Portal Consular (La Habana):
+      </p>
+      <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 13px; color: #444; line-height: 1.6;">
+        <li><strong>Estado en Portal:</strong> ${estadoConsulado}</li>`;
+
+    if (fResolucion) {
+      html += `<li><strong>Fecha de Resolución:</strong> ${fResolucion}</li>`;
+    }
+    if (fInscripcion) {
+      html += `<li><strong>Fecha de Inscripción:</strong> ${fInscripcion}</li>`;
+    }
+    if (datosReg) {
+      html += `<li><strong>Datos Registrales:</strong> ${datosReg}</li>`;
+    } else if (!fInscripcion) {
+      html += `<li><strong>Inscripción:</strong> Expediente pendiente de resolución</li>`;
+    }
+
+    html += `
+      </ul>
+      <p style="margin-bottom: 0; font-size: 11px; color: #888; margin-top: 10px;"><em>(Información verificada automáticamente en el sistema del Consulado General de España en La Habana).</em></p>
+    </div>`;
+
+    return html;
+  } catch (e) {
+    return "";
+  }
+}
+
+function renderHtmlResponse(titulo, mensaje, exito) {
+  const fondo = getConfig("COLOR_FONDO");
+  const oro = getConfig("COLOR_ORO");
+  const texto = getConfig("COLOR_TEXTO");
+  const logoUrl = getConfig("URL_LOGO_PUBLICO");
+  const colorIcono = exito ? oro : "#AA3333";
+  
+  let imgVal = (typeof IMG_BASE64_NOTIFICACION !== 'undefined' && IMG_BASE64_NOTIFICACION !== '') ? IMG_BASE64_NOTIFICACION : logoUrl;
+  if (imgVal && !imgVal.startsWith('http') && !imgVal.startsWith('data:')) {
+    imgVal = 'data:image/png;base64,' + imgVal;
+  }
+
+  const html = `
+    <!DOCTYPE html>
+    <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Expedientes - LMD</title>
+      <style>
+        body { background-color: ${fondo}; font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 90vh; }
+        .card { background-color: #ffffff; max-width: 500px; width: 100%; padding: 0; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; border-top: 4px solid ${oro}; box-sizing: border-box; }
+        .header { background-color: #000000; border-bottom: 3px solid ${oro}; height: 150px; background-image: url('${imgVal}'); background-size: 130px; background-position: center; background-repeat: no-repeat; }
+        .content-box { padding: 35px 30px; }
+        h2 { color: ${texto}; margin-bottom: 15px; font-size: 20px; }
+        p { color: #555555; line-height: 1.6; font-size: 14px; }
+        .footer { margin-top: 25px; font-size: 12px; color: #888888; border-top: 1px solid #eeeeee; padding-top: 18px; }
+      </style>
+    </head><body>
+      <div class="card"><div class="header"></div><div class="content-box">
+          <h2 style="color: ${colorIcono}">${titulo}</h2><p>${mensaje}</p>
+          <div class="footer">Para cualquier duda, escríbenos a <strong>${RESPONDER_A}</strong></div>
+      </div></div>
+    </body></html>
+  `;
+  return HtmlService.createHtmlOutput(html);
+}

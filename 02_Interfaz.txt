@@ -1,0 +1,118 @@
+// ==========================================
+// MÓDULO 02: INTERFAZ, MENÚ DINÁMICO Y MODALES (v3.1)
+// ==========================================
+
+function onOpen() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const modoPrueba = getConfig("MODO_PRUEBA");
+  const colorOro = getConfig("COLOR_ORO") || "#D4AF37";
+
+  // 1. Color dinámico de la pestaña EXPEDIENTES LMD
+  try {
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if (sheet) {
+      sheet.setTabColor(modoPrueba ? colorOro : '#2E7D32');
+    }
+  } catch (e) {}
+
+  // 2. Construcción del Menú con Conmutador Directo y Herramientas LMD
+  const textoModo = modoPrueba
+    ? '🟡 Modo: PRUEBA (Clic para pasar a Producción)'
+    : '🟢 Modo: PRODUCCIÓN (Clic para pasar a Prueba)';
+
+  SpreadsheetApp.getUi().createMenu('🚀 Expedientes LMD')
+    .addItem(textoModo, 'conmutarModoPruebaDirecto')
+    .addSeparator()
+    .addItem('⚙️ Panel de Control', 'abrirPanelControl')
+    .addItem('📊 Termómetro Consular', 'abrirTermometro')
+    .addItem('🔍 Estado consular La Habana', 'ejecutarEstadoConsularManual')
+    .addItem('🔄 Sincronizar Cola de Citas LMD', 'ejecutarSincronizacionCitasManual')
+    .addSeparator()
+    .addItem('1. Verificar Vencimientos (Manual)', 'ejecutarAuditorManual')
+    .addItem('2. Enviar Correos Pendientes', 'ejecutarEnviosManual')
+    .addToUi();
+
+  // 3. Notificación Toast al abrir el libro
+  try {
+    const emailPrueba = getConfig("EMAIL_PRUEBA") || "yanglienlc@gmail.com";
+    if (modoPrueba) {
+      ss.toast(`🟡 MODO PRUEBA ACTIVO (Simulacro)\nLos correos van a: ${emailPrueba}`, 'Sistema LMD', 6);
+    } else {
+      ss.toast('🟢 MODO PRODUCCIÓN REAL\nLos correos se envían a los clientes reales', 'Sistema LMD', 6);
+    }
+  } catch (e) {}
+}
+
+/**
+ * Conmutador directo de 1 solo clic entre Modo Prueba y Modo Producción.
+ */
+function conmutarModoPruebaDirecto() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const actual = getConfig("MODO_PRUEBA");
+  const nuevoModo = !actual;
+
+  // Guardar en propiedades
+  setConfig("MODO_PRUEBA", nuevoModo);
+
+  // Actualizar Menú, Pestaña y UI inmediatamente
+  onOpen();
+
+  // Mensaje Toast de confirmación de cambio
+  const emailPrueba = getConfig("EMAIL_PRUEBA") || "yanglienlc@gmail.com";
+  if (nuevoModo) {
+    ss.toast(`🟡 Has activado el MODO PRUEBA (Simulacro).\nLos correos se redirigen a: ${emailPrueba}`, 'Cambio de Modo', 6);
+  } else {
+    ss.toast('🟢 Has activado el MODO PRODUCCIÓN REAL.\nLos correos se enviarán a los clientes reales.', 'Cambio de Modo', 6);
+  }
+}
+
+/**
+ * Puente manual para poblar/sincronizar la cola de credenciales y citas LMD.
+ */
+function ejecutarSincronizacionCitasManual() {
+  if (typeof sincronizarColaCitasLMD === 'function') {
+    const res = sincronizarColaCitasLMD();
+    if (res && res.ok) {
+      SpreadsheetApp.getActiveSpreadsheet().toast(
+        `✅ Sincronización completada:\n• ${res.agregados} nuevos agregados\n• ${res.actualizados} actualizados`,
+        'Cola de Citas LMD',
+        6
+      );
+    }
+  }
+}
+
+function abrirPanelControl() {
+  const html = HtmlService.createTemplateFromFile('Modal_PanelControl').evaluate()
+    .setWidth(550)
+    .setHeight(650);
+  SpreadsheetApp.getUi().showModalDialog(html, '⚙️ Panel de Configuración');
+}
+
+function abrirTermometro() {
+  const html = HtmlService.createTemplateFromFile('Modal_Termometro').evaluate()
+    .setWidth(450)
+    .setHeight(500);
+  SpreadsheetApp.getUi().showModalDialog(html, '📊 Inteligencia de Negocio');
+}
+
+// Puentes para capturar el resultado y mostrar la ventana emergente
+function ejecutarAuditorManual() {
+  const resultado = trabajadorNocturno(); 
+  mostrarReporte("Verificación de Vencimientos", resultado);
+}
+
+function ejecutarEnviosManual() {
+  const resultado = procesarNotificacionesLMD(); 
+  mostrarReporte("Envío de Notificaciones", resultado);
+}
+
+function mostrarReporte(titulo, resultado) {
+  if (!resultado || resultado.cancelado) return; 
+  
+  const plantilla = HtmlService.createTemplateFromFile('Modal_Reporte');
+  plantilla.titulo = titulo;
+  plantilla.datos = JSON.stringify(resultado); 
+  const html = plantilla.evaluate().setWidth(500).setHeight(550);
+  SpreadsheetApp.getUi().showModalDialog(html, '📊 Reporte del Sistema');
+}

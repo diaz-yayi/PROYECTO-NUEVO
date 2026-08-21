@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f7f7f7;
+      color: #333;
+      margin: 0;
+      padding: 15px;
+    }
+    .caja {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      border-left: 4px solid #D4AF37;
+    }
+    .header-modal {
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    .icono { font-size: 38px; margin-bottom: 4px; }
+    h2 {
+      margin-top: 0;
+      color: #000;
+      border-bottom: 3px solid #D4AF37;
+      padding-bottom: 6px;
+      font-size: 18px;
+      text-align: center;
+    }
+    .badge-prueba {
+      background-color: #fff3cd;
+      color: #856404;
+      padding: 6px;
+      border-radius: 4px;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 12px;
+      border: 1px solid #ffeeba;
+      font-size: 11px;
+    }
+
+    .progress-container {
+      background: #e0e0e0;
+      border-radius: 6px;
+      overflow: hidden;
+      height: 18px;
+      margin: 10px 0 5px 0;
+      position: relative;
+    }
+    .progress-bar {
+      background: linear-gradient(90deg, #000000 0%, #D4AF37 100%);
+      height: 100%;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    .progress-text {
+      text-align: center;
+      font-size: 11px;
+      font-weight: bold;
+      color: #555;
+      margin-bottom: 8px;
+    }
+
+    .console-box {
+      background: #1e1e1e;
+      color: #00ff66;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 11px;
+      padding: 10px;
+      border-radius: 6px;
+      height: 280px;
+      overflow-y: auto;
+      margin-bottom: 14px;
+      border: 1px solid #333;
+    }
+    .console-line { margin-bottom: 4px; word-break: break-all; }
+    .console-line.ok { color: #00ff66; }
+    .console-line.warn { color: #ffcc00; }
+    .console-line.error { color: #ff5555; }
+    .console-line.info { color: #00ccff; }
+
+    .grid-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 12px 0;
+    }
+    .stat-card {
+      background: #fafafa;
+      border: 1px solid #eee;
+      border-radius: 6px;
+      padding: 10px;
+      text-align: center;
+    }
+    .stat-card .numero { font-size: 20px; font-weight: bold; color: #000; }
+    .stat-card .etiqueta { font-size: 11px; color: #666; margin-top: 3px; text-transform: uppercase; }
+
+    .button-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .btn-action-cancel {
+      flex: 1;
+      background: #ffffff;
+      color: #dc3545;
+      border: 1.5px solid #dc3545;
+      padding: 10px 8px;
+      font-size: 12px;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+      text-align: center;
+    }
+    .btn-action-cancel:hover { background: #fff5f5; }
+
+    .btn-action-background {
+      flex: 1;
+      background: #000000;
+      color: #D4AF37;
+      border: 1.5px solid #000000;
+      padding: 10px 8px;
+      font-size: 12px;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+      text-align: center;
+    }
+    .btn-action-background:hover { background: #222222; }
+
+    .btn {
+      background: #000;
+      color: #D4AF37;
+      border: none;
+      padding: 11px 20px;
+      font-size: 14px;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #222; }
+
+    .screen { display: none; }
+    .screen.active { display: block; }
+  </style>
+</head>
+<body>
+
+  <div class="caja">
+
+    <!-- PANTALLA 1: INICIAL -->
+    <div id="screen-start" class="screen active">
+      <div class="header-modal">
+        <div class="icono">🔍</div>
+        <h2>Estado consular La Habana</h2>
+      </div>
+
+      <div id="start-loading" style="text-align: center; padding: 25px;">
+        <div style="font-size: 13px; color: #666;">Escaneando expedientes pendientes de La Habana...</div>
+      </div>
+
+      <div id="start-content" style="display: none;">
+        <div id="badge-modo-prueba" class="badge-prueba" style="display: none;">⚠️ MODO PRUEBA ACTIVO (EXPEDIENTES LMD no será modificada)</div>
+
+        <div style="background: #fdfdfd; border: 1px solid #e5e5e5; border-radius: 6px; padding: 20px; margin: 15px 0; text-align: center;">
+          <div style="font-size: 32px; font-weight: bold; color: #000;" id="txt-total-exp">0</div>
+          <div style="font-size: 13px; color: #666; margin-top: 4px;">Expedientes listos para verificar</div>
+          <div style="font-size: 11px; color: #888; margin-top: 2px;">(Consulado: La Habana | Estados: PENDIENTE RESOLUCIÓN / RESUELTO)</div>
+        </div>
+
+        <button class="btn" id="btn-iniciar" onclick="iniciarVerificacion()">▶ Iniciar Verificación en Vivo</button>
+      </div>
+    </div>
+
+    <!-- PANTALLA 2: PROGRESO EN VIVO -->
+    <div id="screen-progress" class="screen">
+      <div class="header-modal">
+        <div class="icono">🌐</div>
+        <h2>Verificando Expedientes...</h2>
+      </div>
+
+      <div class="progress-container">
+        <div class="progress-bar" id="bar-progress"></div>
+      </div>
+      <div class="progress-text" id="txt-progress-counter">0 / 0 (0%)</div>
+
+      <div class="console-box" id="console">
+        <div class="console-line info">Consola lista. Cascada de apellidos (4 variantes) activa...</div>
+      </div>
+
+      <div class="button-group" id="group-progress-buttons">
+        <button class="btn-action-cancel" id="btn-cancelar" onclick="detenerYSalir()">⏹ Detener y Salir</button>
+        <button class="btn-action-background" id="btn-segundo-plano" onclick="pasarASegundoPlano()">🔄 Segundo Plano y Cerrar</button>
+      </div>
+    </div>
+
+    <!-- PANTALLA 3: RESUMEN FINAL -->
+    <div id="screen-summary" class="screen">
+      <div class="header-modal">
+        <div class="icono" id="summary-icon">✅</div>
+        <h2 id="summary-title">Verificación Completada</h2>
+      </div>
+
+      <div class="grid-stats">
+        <div class="stat-card">
+          <div class="numero" id="sum-consultados">0</div>
+          <div class="etiqueta">Consultados</div>
+        </div>
+        <div class="stat-card">
+          <div class="numero" style="color: #28a745;" id="sum-actualizados">0</div>
+          <div class="etiqueta">Actualizados</div>
+        </div>
+        <div class="stat-card">
+          <div class="numero" style="color: #ffc107;" id="sum-no-encontrados">0</div>
+          <div class="etiqueta">No Encontrados</div>
+        </div>
+        <div class="stat-card">
+          <div class="numero" style="color: #dc3545;" id="sum-errores">0</div>
+          <div class="etiqueta">Errores</div>
+        </div>
+      </div>
+
+      <div style="font-size: 11px; color: #777; text-align: center; margin: 10px 0;" id="sum-timestamp"></div>
+
+      <button class="btn" onclick="google.script.host.close()">Entendido / Cerrar Ventana</button>
+    </div>
+
+  </div>
+
+  <script>
+    let candidatos = [];
+    let totalCandidatos = 0;
+    let currentIndex = 0;
+    let isProcessing = false;
+    let cancelRequested = false;
+
+    let stats = {
+      consultados: 0,
+      actualizados: 0,
+      noEncontrados: 0,
+      errores: 0
+    };
+
+    window.addEventListener('beforeunload', function (e) {
+      if (isProcessing && !cancelRequested) {
+        e.preventDefault();
+        e.returnValue = 'Hay una verificación en curso. ¿Deseas detenerla o pasarla a segundo plano?';
+        return e.returnValue;
+      }
+    });
+
+    window.onload = function() {
+      google.script.run
+        .withSuccessHandler(onEscaneoComplete)
+        .withFailureHandler(onErrorEscaneo)
+        .obtenerListaExpedientesLaHabana();
+    };
+
+    function onEscaneoComplete(res) {
+      document.getElementById('start-loading').style.display = 'none';
+      document.getElementById('start-content').style.display = 'block';
+
+      if (!res.ok) {
+        alert(res.mensaje || 'Error al cargar expedientes.');
+        return;
+      }
+
+      candidatos = res.candidatos || [];
+      totalCandidatos = candidatos.length;
+
+      document.getElementById('txt-total-exp').innerText = totalCandidatos;
+
+      if (res.modoPrueba) {
+        document.getElementById('badge-modo-prueba').style.display = 'block';
+      }
+
+      if (totalCandidatos === 0) {
+        document.getElementById('btn-iniciar').disabled = true;
+        document.getElementById('btn-iniciar').innerText = 'No hay expedientes pendientes';
+      }
+    }
+
+    function onErrorEscaneo(err) {
+      document.getElementById('start-loading').innerText = 'Error de comunicación: ' + err.message;
+    }
+
+    function switchScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(screenId).classList.add('active');
+    }
+
+    function logConsole(msg, type) {
+      const consoleBox = document.getElementById('console');
+      const div = document.createElement('div');
+      div.className = 'console-line ' + (type || '');
+      div.innerText = msg;
+      consoleBox.appendChild(div);
+      consoleBox.scrollTop = consoleBox.scrollHeight;
+    }
+
+    function iniciarVerificacion() {
+      if (totalCandidatos === 0) return;
+      isProcessing = true;
+      switchScreen('screen-progress');
+      currentIndex = 0;
+      cancelRequested = false;
+      procesarSiguiente();
+    }
+
+    function detenerYSalir() {
+      cancelRequested = true;
+      isProcessing = false;
+      document.getElementById('btn-cancelar').disabled = true;
+      document.getElementById('btn-segundo-plano').disabled = true;
+      logConsole('⚠️ Deteniendo verificación al terminar expediente en curso...', 'warn');
+    }
+
+    function pasarASegundoPlano() {
+      cancelRequested = true;
+      isProcessing = false;
+
+      const currentItem = candidatos[currentIndex] || candidatos[0];
+      const startFromRow = currentItem ? currentItem.rowIndex : 1;
+
+      logConsole('🔄 Transfiriendo verificación restante al servidor en segundo plano...', 'info');
+
+      document.getElementById('btn-cancelar').disabled = true;
+      document.getElementById('btn-segundo-plano').innerText = '⏳ Transfiriendo...';
+      document.getElementById('btn-segundo-plano').disabled = true;
+
+      google.script.run
+        .withSuccessHandler(function() {
+          alert('✅ La verificación continuará en segundo plano automáticamente. Puedes cerrar la ventana.');
+          google.script.host.close();
+        })
+        .withFailureHandler(function(err) {
+          alert('Error al transferir a segundo plano: ' + err.message);
+        })
+        .delegarASegundoPlano(startFromRow);
+    }
+
+    function procesarSiguiente() {
+      if (cancelRequested || currentIndex >= totalCandidatos) {
+        isProcessing = false;
+        finalizarProceso();
+        return;
+      }
+
+      const item = candidatos[currentIndex];
+      const numActual = currentIndex + 1;
+      const pct = Math.round((numActual / totalCandidatos) * 100);
+
+      document.getElementById('bar-progress').style.width = pct + '%';
+      document.getElementById('txt-progress-counter').innerText = numActual + ' / ' + totalCandidatos + ' (' + pct + '%)';
+
+      logConsole('🌐 [' + numActual + '/' + totalCandidatos + '] Consultando: ' + item.noExpediente + ' — ' + item.nombreCompleto + '...', 'info');
+
+      google.script.run
+        .withSuccessHandler(onItemProcesado)
+        .withFailureHandler(onItemError)
+        .procesarUnExpedienteConsular(item);
+    }
+
+    function onItemProcesado(res) {
+      stats.consultados++;
+
+      if (res.resultado === 'OK') {
+        stats.actualizados++;
+        let matchNote = '';
+        if (res.varianteUsada && res.varianteUsada !== candidatos[currentIndex].apellidos) {
+          matchNote = ' (Coincidencia con: "' + res.varianteUsada + '")';
+        }
+        logConsole('   ✅ Estado: ' + (res.estadoConsulado || 'OK') + matchNote, 'ok');
+      } else if (res.resultado === 'NO_ENCONTRADO') {
+        stats.noEncontrados++;
+        logConsole('   ⚠️ No encontrado (Verificadas 4 variantes de apellidos).', 'warn');
+      } else {
+        stats.errores++;
+        logConsole('   ❌ Error de conexión: ' + (res.detalle || 'Error API'), 'error');
+      }
+
+      currentIndex++;
+      procesarSiguiente();
+    }
+
+    function onItemError(err) {
+      stats.consultados++;
+      stats.errores++;
+      logConsole('   ❌ Error crítico: ' + err.message, 'error');
+      currentIndex++;
+      procesarSiguiente();
+    }
+
+    function finalizarProceso() {
+      isProcessing = false;
+      switchScreen('screen-summary');
+
+      if (cancelRequested) {
+        document.getElementById('summary-icon').innerText = '⏹';
+        document.getElementById('summary-title').innerText = 'Verificación Detenida';
+      } else {
+        document.getElementById('summary-icon').innerText = '✅';
+        document.getElementById('summary-title').innerText = 'Verificación Completada';
+      }
+
+      document.getElementById('sum-consultados').innerText = stats.consultados;
+      document.getElementById('sum-actualizados').innerText = stats.actualizados;
+      document.getElementById('sum-no-encontrados').innerText = stats.noEncontrados;
+      document.getElementById('sum-errores').innerText = stats.errores;
+
+      const ahora = new Date().toLocaleString('es-ES');
+      document.getElementById('sum-timestamp').innerText = 'Última verificación: ' + ahora;
+    }
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f7f7f7; color: #333; }
+    
+    /* Layout principal Flexbox para footer fijo */
+    .app-container { display: flex; flex-direction: column; height: 100vh; position: relative; }
+    
+    /* Velo de Carga (Overlay & Spinner) */
+    .overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(247, 247, 247, 0.95);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 999; transition: opacity 0.3s ease;
+    }
+    .spinner {
+      width: 45px; height: 45px; border: 4px solid #e0e0e0;
+      border-top: 4px solid #D4AF37; border-radius: 50%;
+      animation: spin 1s linear infinite; margin-bottom: 12px;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .overlay-text { font-size: 14px; font-weight: bold; color: #555; }
+    
+    /* Contenido deslizable */
+    .form-content { flex: 1; overflow-y: auto; padding: 20px; }
+    
+    .grupo { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid #D4AF37; }
+    h3 { font-size: 14px; margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 5px; color: #555; }
+    label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 5px; margin-top: 10px; }
+    input[type="text"], input[type="number"], input[type="email"] { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+    input[type="color"] { border: none; border-radius: 4px; width: 50px; height: 30px; cursor: pointer; padding: 0; background: none; }
+    .fila-color { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+    .toggle { display: flex; align-items: center; justify-content: space-between; background: #fff3cd; padding: 10px; border-radius: 4px; }
+    .toggle input { transform: scale(1.5); cursor: pointer; }
+    
+    /* Pie de página fijo en la parte inferior */
+    .footer-fixed {
+      background: #ffffff; padding: 15px 20px; border-top: 1px solid #e0e0e0;
+      box-shadow: 0 -2px 8px rgba(0,0,0,0.05); text-align: center;
+    }
+    
+    .btn {
+      background: #000000; color: #D4AF37; border: none; padding: 12px 20px;
+      width: 100%; font-size: 15px; font-weight: bold; border-radius: 4px;
+      cursor: pointer; transition: all 0.3s ease;
+    }
+    .btn:disabled {
+      background: #cccccc !important; color: #888888 !important; cursor: not-allowed !important; opacity: 0.7;
+    }
+    .btn:not(:disabled):hover { background: #222222; }
+    
+    #alerta { display: none; text-align: center; color: #2e7d32; font-weight: bold; margin-top: 8px; font-size: 13px; }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <div id="loading-overlay" class="overlay">
+      <div class="spinner"></div>
+      <div class="overlay-text">Cargando configuración...</div>
+    </div>
+
+    <div class="form-content">
+      <div class="grupo">
+        <div class="toggle">
+          <label style="margin:0; font-size:14px;">Modo Prueba (Simulacro)</label>
+          <input type="checkbox" id="MODO_PRUEBA">
+        </div>
+        <label>Email para recibir pruebas:</label>
+        <input type="email" id="EMAIL_PRUEBA">
+      </div>
+
+      <div class="grupo">
+        <h3>Tiempos de Notificación</h3>
+        <label>Días de Silencio Inicial (Resoluciones):</label>
+        <input type="number" id="DIAS_CARENCIA_RESOLUCION">
+        <label>Frecuencia de Avisos (Resoluciones y Recursos):</label>
+        <input type="number" id="DIAS_CICLO_SEGUIMIENTO">
+        <label>Frecuencia de Avisos (Citas y Credenciales):</label>
+        <input type="number" id="DIAS_CICLO_TRAMITES">
+      </div>
+
+      <div class="grupo">
+        <h3>Identidad de Marca</h3>
+        <div class="fila-color">
+          <label style="margin:0;">Color Corporativo (Oro):</label>
+          <input type="color" id="COLOR_ORO">
+        </div>
+        <div class="fila-color">
+          <label style="margin:0;">Color de Fondo:</label>
+          <input type="color" id="COLOR_FONDO">
+        </div>
+        <div class="fila-color">
+          <label style="margin:0;">Color de Texto:</label>
+          <input type="color" id="COLOR_TEXTO">
+        </div>
+        <label>URL del Logo (Público):</label>
+        <input type="text" id="URL_LOGO_PUBLICO">
+      </div>
+    </div>
+
+    <div class="footer-fixed">
+      <button class="btn" id="btnGuardar" disabled onclick="guardar()">Guardar Configuración</button>
+      <div id="alerta">¡Cambios guardados con éxito!</div>
+    </div>
+  </div>
+
+  <script>
+    let snapshotInicial = {};
+
+    // Iniciar carga al abrir el modal
+    window.addEventListener('DOMContentLoaded', () => {
+      google.script.run.withSuccessHandler(llenarFormulario).obtenerConfiguracionActual();
+    });
+
+    function capturarEstadoActual() {
+      return {
+        MODO_PRUEBA: document.getElementById("MODO_PRUEBA").checked,
+        EMAIL_PRUEBA: document.getElementById("EMAIL_PRUEBA").value.trim(),
+        DIAS_CARENCIA_RESOLUCION: document.getElementById("DIAS_CARENCIA_RESOLUCION").value,
+        DIAS_CICLO_SEGUIMIENTO: document.getElementById("DIAS_CICLO_SEGUIMIENTO").value,
+        DIAS_CICLO_TRAMITES: document.getElementById("DIAS_CICLO_TRAMITES").value,
+        COLOR_ORO: document.getElementById("COLOR_ORO").value.toUpperCase(),
+        COLOR_FONDO: document.getElementById("COLOR_FONDO").value.toUpperCase(),
+        COLOR_TEXTO: document.getElementById("COLOR_TEXTO").value.toUpperCase(),
+        URL_LOGO_PUBLICO: document.getElementById("URL_LOGO_PUBLICO").value.trim()
+      };
+    }
+
+    function llenarFormulario(datos) {
+      document.getElementById("MODO_PRUEBA").checked = !!datos.MODO_PRUEBA;
+      document.getElementById("EMAIL_PRUEBA").value = datos.EMAIL_PRUEBA || "";
+      document.getElementById("DIAS_CARENCIA_RESOLUCION").value = datos.DIAS_CARENCIA_RESOLUCION || 60;
+      document.getElementById("DIAS_CICLO_SEGUIMIENTO").value = datos.DIAS_CICLO_SEGUIMIENTO || 30;
+      document.getElementById("DIAS_CICLO_TRAMITES").value = datos.DIAS_CICLO_TRAMITES || 30;
+      document.getElementById("COLOR_ORO").value = datos.COLOR_ORO || "#D4AF37";
+      document.getElementById("COLOR_FONDO").value = datos.COLOR_FONDO || "#F7F7F7";
+      document.getElementById("COLOR_TEXTO").value = datos.COLOR_TEXTO || "#333333";
+      document.getElementById("URL_LOGO_PUBLICO").value = datos.URL_LOGO_PUBLICO || "";
+
+      // Tomamos la "fotografía" inicial
+      snapshotInicial = capturarEstadoActual();
+
+      // Ocultamos el velo de carga con efecto fade-out
+      const overlay = document.getElementById("loading-overlay");
+      overlay.style.opacity = "0";
+      setTimeout(() => { overlay.style.display = "none"; }, 300);
+
+      // Asignamos detectores de eventos a todos los controles
+      const inputs = document.querySelectorAll("input");
+      inputs.forEach(input => {
+        input.addEventListener("input", verificarCambios);
+        input.addEventListener("change", verificarCambios);
+      });
+    }
+
+    function verificarCambios() {
+      const estadoActual = capturarEstadoActual();
+      let isDirty = false;
+
+      for (let key in snapshotInicial) {
+        if (estadoActual[key] !== snapshotInicial[key]) {
+          isDirty = true;
+          break;
+        }
+      }
+
+      const btn = document.getElementById("btnGuardar");
+      btn.disabled = !isDirty;
+    }
+
+    function guardar() {
+      const btn = document.getElementById("btnGuardar");
+      btn.disabled = true;
+      btn.innerText = "Guardando...";
+
+      const datos = capturarEstadoActual();
+
+      google.script.run.withSuccessHandler(() => {
+        // Actualizamos el snapshot con los nuevos valores guardados
+        snapshotInicial = Object.assign({}, datos);
+        btn.innerText = "Guardar Configuración";
+        btn.disabled = true;
+
+        const alerta = document.getElementById("alerta");
+        alerta.style.display = "block";
+        setTimeout(() => { alerta.style.display = "none"; }, 2500);
+      }).guardarConfiguracion(datos);
+    }
+  </script>
+</body>
+</html>

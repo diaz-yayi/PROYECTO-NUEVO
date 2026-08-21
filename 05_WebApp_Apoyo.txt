@@ -1,0 +1,1717 @@
+// ==========================================
+// MÓDULO 05: FUNCIONES DE APOYO Y WEB APP (ROUTER SEGURO v5.0 COMPLETO)
+// ==========================================
+
+function doGet(e) {
+  const params = (e && e.parameter) ? e.parameter : {};
+  const accion = params.accion || '';
+  const key = params.key || '';
+
+  // --- API ROUTER: ENDPOINT SEGURO PARA EL ROBOT DEL RCC ---
+  if (accion === 'obtener_rcc') {
+    if (key !== PALABRA_SECRETA) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Acceso no autorizado' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const datosRCC = (typeof obtenerExpedientesPendientesRCC === 'function') 
+      ? obtenerExpedientesPendientesRCC() 
+      : { ok: false, error: 'Módulo RCC no cargado' };
+    
+    return ContentService.createTextOutput(JSON.stringify(datosRCC))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // --- API ROUTER: ENDPOINT SEGURO PARA EL RADAR DE CITAS LMD ---
+  if (accion === 'obtener_citas_candidatos') {
+    if (key !== PALABRA_SECRETA) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Acceso no autorizado' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const consulado = params.consulado || '';
+    const datosCandidatos = (typeof obtenerCandidatosParaRadarCitas === 'function')
+      ? obtenerCandidatosParaRadarCitas(consulado)
+      : { ok: false, error: 'Módulo Citas LMD no cargado' };
+
+    return ContentService.createTextOutput(JSON.stringify(datosCandidatos))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // --- API ROUTER: ENDPOINT ULTRA-RÁPIDO UNIFICADO (BOOTSTRAP COMPLETO EN 1 SOLA PETICIÓN) ---
+  if (accion === 'obtener_bootstrap_sistema') {
+    if (key !== PALABRA_SECRETA) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Acceso no autorizado' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const bootstrapData = (typeof obtenerBootstrapSistemaUnificado === 'function')
+      ? obtenerBootstrapSistemaUnificado()
+      : obtenerTodosExpedientesParaPortal();
+
+    return ContentService.createTextOutput(JSON.stringify(bootstrapData))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // --- API ROUTER: ENDPOINT SEGURO PARA EL PORTAL WEB LMD (TODOS LOS EXPEDIENTES Y CONSULADOS) ---
+  if (accion === 'obtener_todos_expedientes') {
+    if (key !== PALABRA_SECRETA) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Acceso no autorizado' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const datosCompletos = obtenerTodosExpedientesParaPortal();
+    return ContentService.createTextOutput(JSON.stringify(datosCompletos))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // --- API ROUTER: ENDPOINT SEGURO PARA DASHBOARD Y ESTADÍSTICAS KPIS ---
+  if (accion === 'obtener_dashboard_kpis') {
+    if (key !== PALABRA_SECRETA) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Acceso no autorizado' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const datosDashboard = obtenerDashboardKPIsParaPortal();
+    return ContentService.createTextOutput(JSON.stringify(datosDashboard))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // --- API ROUTER: OBTENER CONFIGURACIÓN DEL SISTEMA ---
+  if (accion === 'obtener_configuracion_sistema') {
+    if (key !== PALABRA_SECRETA) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Acceso no autorizado' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const configActual = (typeof obtenerConfiguracionActual === 'function')
+      ? obtenerConfiguracionActual()
+      : {};
+    const props = PropertiesService.getDocumentProperties();
+    configActual.TERMOMETRO_HABANA = props.getProperty('TERMOMETRO_HABANA') || "Aún no hay datos registrados";
+    configActual.TERMOMETRO_MIAMI = props.getProperty('TERMOMETRO_MIAMI') || "Aún no hay datos registrados";
+
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, config: configActual }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // --- API ROUTER: OBTENER CANDIDATOS CALIFICADOS LA HABANA (ESPEJO EXACTO MÓDULO 09) ---
+  if (accion === 'obtener_candidatos_habana') {
+    if (key !== PALABRA_SECRETA) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Acceso no autorizado' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const candidatos = (typeof obtenerListaExpedientesLaHabana === 'function')
+      ? obtenerListaExpedientesLaHabana()
+      : obtenerListaExpedientesLaHabanaDirecto();
+
+    return ContentService.createTextOutput(JSON.stringify(candidatos))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // --- API ROUTER: OBTENER LOGS DE OPERACIONES DEL SISTEMA (LOGS_SISTEMA) ---
+  if (accion === 'obtener_logs_sistema') {
+    if (key !== PALABRA_SECRETA) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Acceso no autorizado' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheetNameLogs = (typeof SHEET_LOGS !== 'undefined') ? SHEET_LOGS : "LOGS_SISTEMA";
+    const sheetLogs = ss.getSheetByName(sheetNameLogs) || ss.getSheetByName("LOGS_SISTEMA");
+    if (!sheetLogs) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, logs: [], total: 0 }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    const lastRow = sheetLogs.getLastRow();
+    if (lastRow <= 1) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, logs: [], total: 0 }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    const maxRegistros = 200;
+    const startRow = Math.max(2, lastRow - maxRegistros + 1);
+    const numRows = lastRow - startRow + 1;
+    const dataLogs = sheetLogs.getRange(startRow, 1, numRows, 6).getValues();
+
+    const logsArray = [];
+    for (let i = dataLogs.length - 1; i >= 0; i--) {
+      const row = dataLogs[i];
+      let fechaStr = '';
+      if (row[0] instanceof Date) {
+        fechaStr = Utilities.formatDate(row[0], Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss');
+      } else {
+        fechaStr = String(row[0] || '');
+      }
+
+      logsArray.push({
+        fecha: fechaStr,
+        identificador: String(row[1] || '—'),
+        cliente: String(row[2] || '—'),
+        email: String(row[3] || '—'),
+        accion: String(row[4] || 'GENERAL'),
+        detalle: String(row[5] || '')
+      });
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, logs: logsArray, total: logsArray.length }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // --- API ROUTER: OBTENER VERIFICACIONES CONSULARES (LA HABANA / VERIFICACION_CONSULAR) ---
+  if (accion === 'obtener_verificacion_habana') {
+    if (key !== PALABRA_SECRETA) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Acceso no autorizado' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheetHab = ss.getSheetByName("VERIFICACION_CONSULAR");
+    if (!sheetHab || sheetHab.getLastRow() <= 1) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, verificaciones: [], total: 0 }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    const dataHab = sheetHab.getRange(2, 1, sheetHab.getLastRow() - 1, Math.max(13, sheetHab.getLastColumn())).getValues();
+    const listaHabana = [];
+
+    for (let h = dataHab.length - 1; h >= 0; h--) {
+      const f = dataHab[h];
+      const id = String(f[3] || '').trim();
+      if (!id) continue;
+
+      let fResol = f[8] ? (f[8] instanceof Date ? Utilities.formatDate(f[8], Session.getScriptTimeZone(), "dd/MM/yyyy") : String(f[8])) : '';
+      let fInsc = f[9] ? (f[9] instanceof Date ? Utilities.formatDate(f[9], Session.getScriptTimeZone(), "dd/MM/yyyy") : String(f[9])) : '';
+      let fUlt = f[12] ? (f[12] instanceof Date ? Utilities.formatDate(f[12], Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss") : String(f[12])) : '';
+
+      listaHabana.push({
+        nombre: String(f[0] || ''),
+        apellidos: String(f[1] || ''),
+        nombreCompleto: `${String(f[0] || '')} ${String(f[1] || '')}`.trim(),
+        numeroExpediente: String(f[2] || ''),
+        identificador: id,
+        estadoConsulado: String(f[4] || 'PENDIENTE'),
+        nombreSistema: String(f[5] || ''),
+        progenitor: String(f[6] || ''),
+        fechaPortal: String(f[7] || ''),
+        fechaResolucion: fResol,
+        fechaInscripcion: fInsc,
+        datosRegistrales: String(f[10] || ''),
+        resultado: String(f[11] || 'OK'),
+        ultimaVerificacion: fUlt
+      });
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, verificaciones: listaHabana, total: listaHabana.length }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // --- API ROUTER: OBTENER VERIFICACIONES RCC ESPAÑA (VERIFICACION_RCC) ---
+  if (accion === 'obtener_verificacion_rcc') {
+    if (key !== PALABRA_SECRETA) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Acceso no autorizado' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheetRcc = ss.getSheetByName("VERIFICACION_RCC");
+    if (!sheetRcc || sheetRcc.getLastRow() <= 1) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, verificaciones: [], total: 0 }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    const dataRcc = sheetRcc.getRange(2, 1, sheetRcc.getLastRow() - 1, Math.max(10, sheetRcc.getLastColumn())).getValues();
+    const listaRcc = [];
+
+    for (let r = dataRcc.length - 1; r >= 0; r--) {
+      const f = dataRcc[r];
+      const id = String(f[4] || '').trim();
+      if (!id) continue;
+
+      let fUlt = f[9] ? (f[9] instanceof Date ? Utilities.formatDate(f[9], Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss") : String(f[9])) : '';
+
+      listaRcc.push({
+        nombre: String(f[0] || ''),
+        apellidos: String(f[1] || ''),
+        nombreCompleto: `${String(f[0] || '')} ${String(f[1] || '')}`.trim(),
+        numeroExpediente: String(f[2] || ''),
+        anioExpediente: String(f[3] || ''),
+        identificador: id,
+        estadoRCC: String(f[5] || 'EN TRAMITACION'),
+        nombreSistema: String(f[6] || ''),
+        detalleOficial: String(f[7] || ''),
+        resultado: String(f[8] || 'OK'),
+        ultimaVerificacion: fUlt
+      });
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, verificaciones: listaRcc, total: listaRcc.length }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // --- GESTIÓN DE BAJAS DE SUSCRIPCIÓN DE CLIENTES ---
+  const id = params.id;
+  const tokenUrl = params.token;
+  
+  if (!id || !tokenUrl) return renderHtmlResponse("Enlace inválido", "El enlace al que intentas acceder está incompleto o mal formado.", false);
+
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  const dataRange = sheet.getDataRange();
+  const data = dataRange.getValues();
+  const richData = dataRange.getRichTextValues(); 
+  
+  let encontrado = false;
+  let nombreCliente = "";
+  let emailCliente = "";
+
+  for (let i = 1; i < data.length; i++) {
+    const rowId = String(data[i][8]).trim();
+    const rowEmail = extraerEmailReal(data[i][9], richData[i][9]); 
+    
+    if (rowId === id) {
+      const tokenEsperado = generarToken(rowId, rowEmail);
+      if (tokenEsperado === tokenUrl) {
+        sheet.getRange(i + 1, 13).setValue("SI"); 
+        encontrado = true;
+        nombreCliente = String(data[i][0]).trim();
+        emailCliente = rowEmail;
+        break;
+      }
+    }
+  }
+
+  if (encontrado) {
+    registrarLog(id, nombreCliente, emailCliente, "Baja de Suscripción", "El cliente se dio de baja mediante el enlace");
+    return renderHtmlResponse(
+      "Preferencias actualizadas con éxito", 
+      "Has sido dado de baja de nuestro sistema de notificaciones automáticas.", 
+      true
+    );
+  } else {
+    registrarLog(id, "Intento de Baja", "Desconocido", "Alerta de Seguridad", "Token o ID no coincidente");
+    return renderHtmlResponse("Error de seguridad", "El enlace no es válido o ha expirado.", false);
+  }
+}
+
+function doPost(e) {
+  try {
+    const params = (e && e.parameter) ? e.parameter : {};
+    let postData = null;
+    try {
+      if (e && e.postData && e.postData.contents) {
+        postData = JSON.parse(e.postData.contents);
+      }
+    } catch (errJson) {}
+
+    const key = params.key || (postData ? postData.key : '') || '';
+    const accion = params.accion || (postData ? postData.accion : '') || '';
+    
+    if (key !== PALABRA_SECRETA) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Acceso no autorizado' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // --- FUNCIÓN AUXILIAR DE CERROJO TRANSACCIONAL ATÓMICO (LOCKSERVICE) ---
+    function _ejecutarConLock(fn, timeoutMs = 20000) {
+      const lock = LockService.getScriptLock();
+      const tieneLock = lock.tryLock(timeoutMs);
+      if (!tieneLock) {
+        return { ok: false, error: 'El servidor de Google Sheets está ocupado procesando otra transacción concurrente. Por favor, reintenta.' };
+      }
+      try {
+        SpreadsheetApp.flush();
+        const res = fn();
+        SpreadsheetApp.flush();
+        return res;
+      } catch (err) {
+        return { ok: false, error: err.message || 'Error en ejecución con cerrojo' };
+      } finally {
+        try { lock.releaseLock(); } catch(e) {}
+      }
+    }
+
+    // --- ENDPOINT: REGISTRAR RESULTADO RCC ---
+    if (accion === 'guardar_rcc') {
+      const postData = e.postData ? JSON.parse(e.postData.contents) : null;
+      if (!postData || !postData.candidato || !postData.resultado) {
+        return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Datos incompletos' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const res = _ejecutarConLock(() => {
+        if (typeof registrarResultadoRCC === 'function') {
+          registrarResultadoRCC(postData.candidato, postData.resultado);
+        }
+        return { ok: true };
+      });
+
+      return ContentService.createTextOutput(JSON.stringify(res))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // --- ENDPOINT: REGISTRAR CITA CAPTURADA LMD ---
+    if (accion === 'guardar_cita_capturada') {
+      const postData = e.postData ? JSON.parse(e.postData.contents) : null;
+      if (!postData || !postData.identificador || !postData.fechaCita) {
+        return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Datos de cita incompletos' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const res = _ejecutarConLock(() => {
+        return (typeof registrarCitaCapturadaLMD === 'function')
+          ? registrarCitaCapturadaLMD(postData)
+          : { ok: false, error: 'Módulo Citas LMD no cargado' };
+      });
+
+      return ContentService.createTextOutput(JSON.stringify(res))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // --- ENDPOINT: GUARDAR / EDITAR EXPEDIENTE GENERAL DESDE PORTAL WEB ---
+    if (accion === 'guardar_expediente_general') {
+      const postData = e.postData ? JSON.parse(e.postData.contents) : null;
+      if (!postData) {
+        return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Datos vacíos' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const datosPayload = (postData.datos && typeof postData.datos === 'object') ? postData.datos : postData;
+      const res = _ejecutarConLock(() => guardarExpedienteGeneralDesdePortal(datosPayload));
+      return ContentService.createTextOutput(JSON.stringify(res))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // --- ENDPOINT: GUARDAR CREDENCIALES / CITAS DESDE PORTAL WEB ---
+    if (accion === 'guardar_credenciales_citas') {
+      const postData = e.postData ? JSON.parse(e.postData.contents) : null;
+      if (!postData) {
+        return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Datos vacíos' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const datosPayload = (postData.datos && typeof postData.datos === 'object') ? postData.datos : postData;
+      const res = _ejecutarConLock(() => guardarCredencialesCitasDesdePortal(datosPayload));
+      return ContentService.createTextOutput(JSON.stringify(res))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // --- ENDPOINT: GUARDAR CONFIGURACIÓN DEL SISTEMA DESDE PORTAL WEB ---
+    if (accion === 'guardar_configuracion_sistema') {
+      const postData = e.postData ? JSON.parse(e.postData.contents) : null;
+      const cfgObj = (postData && postData.config && typeof postData.config === 'object')
+        ? postData.config
+        : (postData && typeof postData === 'object' ? postData : null);
+
+      if (!cfgObj) {
+        return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Datos de configuración vacíos' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const res = _ejecutarConLock(() => {
+        if (typeof guardarConfiguracion === 'function') {
+          guardarConfiguracion(cfgObj);
+        } else {
+          const props = PropertiesService.getDocumentProperties();
+          for (const k in cfgObj) {
+            if (k !== 'key' && k !== 'accion') {
+              props.setProperty(k, cfgObj[k].toString());
+            }
+          }
+        }
+        return { ok: true, mensaje: 'Configuración guardada exitosamente en Google Sheets' };
+      });
+
+      return ContentService.createTextOutput(JSON.stringify(res))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // --- ENDPOINT: BOOTSTRAP UNIFICADO (EXPEDIENTES + KPIS + CONFIG EN 1 SOLA LLAMADA) ---
+    if (accion === 'obtener_bootstrap_portal') {
+      const resExp = obtenerTodosExpedientesParaPortal();
+      const resKPIs = obtenerDashboardKPIsDesdeSheets();
+      const resCfg = obtenerConfiguracionSistemaParaWeb();
+      return ContentService.createTextOutput(JSON.stringify({
+        ok: true,
+        success: true,
+        expedientes: resExp.expedientes || [],
+        total: resExp.total || 0,
+        consulados: resExp.consulados || [],
+        dashboardKPIs: resKPIs || {},
+        configSistema: resCfg.config || {},
+        modoPrueba: resCfg.config ? resCfg.config.MODO_PRUEBA : true
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // --- ENDPOINT: CONMUTAR MODO PRUEBA / REAL (SILENCIOSO Y ROBUSTO) ---
+    if (accion === 'conmutar_modo_prueba') {
+      const res = _ejecutarConLock(() => {
+        const props = PropertiesService.getDocumentProperties();
+        const actualProp = props.getProperty('MODO_PRUEBA');
+        const actual = (actualProp !== null) ? (actualProp === 'true') : true;
+        const nuevoModo = !actual;
+        props.setProperty('MODO_PRUEBA', nuevoModo.toString());
+        return { ok: true, modoPrueba: nuevoModo };
+      });
+
+      return ContentService.createTextOutput(JSON.stringify(res))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // --- ENDPOINT: EJECUTAR VERIFICAR VENCIMIENTOS (AUDITOR NOCTURNO) ---
+    if (accion === 'ejecutar_verificar_vencimientos') {
+      const res = _ejecutarConLock(() => {
+        return (typeof trabajadorNocturno === 'function')
+          ? trabajadorNocturno()
+          : { ok: false, mensaje: 'Módulo TrabajadorNocturno no cargado' };
+      }, 30000);
+
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, reporte: res }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // --- ENDPOINT: EJECUTAR ENVÍO DE NOTIFICACIONES ---
+    if (accion === 'ejecutar_envio_notificaciones') {
+      const res = _ejecutarConLock(() => {
+        return (typeof procesarNotificacionesLMD === 'function')
+          ? procesarNotificacionesLMD()
+          : { ok: false, mensaje: 'Módulo MotorEnvios no cargado' };
+      }, 30000);
+
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, reporte: res }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // --- ENDPOINT: EJECUTAR SINCRONIZAR COLA DE CITAS LMD ---
+    if (accion === 'ejecutar_sincronizar_citas') {
+      const res = _ejecutarConLock(() => {
+        return (typeof sincronizarColaCitasLMD === 'function')
+          ? sincronizarColaCitasLMD()
+          : { ok: false, mensaje: 'Módulo Citas LMD no cargado' };
+      }, 30000);
+
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, reporte: res }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // --- ENDPOINT: OBTENER CANDIDATOS CALIFICADOS LA HABANA (MÓDULO 09) ---
+    if (accion === 'obtener_candidatos_habana') {
+      const candidatos = (typeof obtenerListaExpedientesLaHabana === 'function')
+        ? obtenerListaExpedientesLaHabana()
+        : obtenerListaExpedientesLaHabanaDirecto();
+
+      return ContentService.createTextOutput(JSON.stringify(candidatos))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // --- ENDPOINT: VERIFICAR UN EXPEDIENTE DE LA HABANA (INDIVIDUAL O LOTE) ---
+    if (accion === 'verificar_un_expediente_habana') {
+      const postData = e.postData ? JSON.parse(e.postData.contents) : null;
+      const payloadObj = (postData && postData.payload) ? postData.payload : postData;
+      const itemObj = (payloadObj && (payloadObj.item || payloadObj.expediente)) 
+        ? (payloadObj.item || payloadObj.expediente) 
+        : payloadObj;
+      
+      if (!itemObj || (!itemObj.noExpediente && !itemObj.identificador)) {
+        return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Item de expediente no provisto' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const res = (typeof procesarUnExpedienteConsular === 'function')
+        ? procesarUnExpedienteConsular(itemObj)
+        : procesarUnExpedienteHabanaDirecto(itemObj);
+
+      return ContentService.createTextOutput(JSON.stringify(res))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // --- ENDPOINT: CONSULTAR ESTADO OFICIAL EN API LA HABANA ---
+    if (accion === 'consultar_estado_habana_api') {
+      const postData = e.postData ? JSON.parse(e.postData.contents) : null;
+      const noExp = postData ? postData.noExpediente : '';
+      const apellidos = postData ? (postData.apellidos || '') : '';
+      if (!noExp) {
+        return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'No. de expediente no provisto' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const res = (typeof _vc_consultarAPI === 'function')
+        ? _vc_consultarAPI(apellidos, noExp)
+        : consultarApiConsuladoLaHabanaAutenticado(apellidos, noExp);
+
+      return ContentService.createTextOutput(JSON.stringify(res))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Acción no reconocida' }))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * Obtiene la lista de candidatos que califican para verificación en La Habana
+ * Filtros estrictos: Consulado La Habana + Estado PENDIENTE RESOLUCION / RESUELTO + Formato DDMMYY-NNN + ID
+ */
+function obtenerListaExpedientesLaHabanaDirecto() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sourceSheet = ss.getSheetByName(SHEET_NAME);
+  if (!sourceSheet) return { ok: false, mensaje: `No se encontró la hoja "${SHEET_NAME}".` };
+
+  const data = sourceSheet.getDataRange().getValues();
+  const candidatos = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const fila          = data[i];
+    const nombre        = String(fila[0] || '').trim();
+    const apellidos     = String(fila[1] || '').trim();
+    const consulado     = String(fila[2] || '').trim().toUpperCase();
+    const noExpediente  = String(fila[4] || '').trim();
+    const estado        = String(fila[5] || '').trim().toUpperCase();
+    const identificador = String(fila[8] || '').trim();
+
+    if (!consulado.includes('HABANA')) continue;
+    if (estado !== 'PENDIENTE RESOLUCION' && estado !== 'RESUELTO') continue;
+    if (!noExpediente || !/^\d{6}-\d{3,}$/.test(noExpediente)) continue;
+    if (!identificador) continue;
+
+    candidatos.push({
+      rowIndex: i + 1,
+      nombre: nombre,
+      apellidos: apellidos,
+      nombreCompleto: `${nombre} ${apellidos}`.trim(),
+      noExpediente: noExpediente,
+      identificador: identificador,
+      estadoOriginal: estado
+    });
+  }
+
+  const modoPrueba = (typeof getConfig === 'function') ? getConfig('MODO_PRUEBA') : true;
+  return {
+    ok: true,
+    total: candidatos.length,
+    candidatos: candidatos,
+    modoPrueba: modoPrueba
+  };
+}
+
+/**
+ * Procesa la verificación consular de 1 expediente con protocolo autenticado y bitácora
+ */
+function procesarUnExpedienteHabanaDirecto(item) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sourceSheet = ss.getSheetByName(SHEET_NAME);
+  const nombre        = item.nombre || '';
+  const apellidos     = item.apellidos || '';
+  const noExpediente  = item.noExpediente || '';
+  const identificador = item.identificador || '';
+  const nombreCompleto= item.nombreCompleto || `${nombre} ${apellidos}`.trim();
+  const rowIndexMain  = item.rowIndex || 0;
+
+  const apiResult = (typeof _vc_consultarAPI === 'function')
+    ? _vc_consultarAPI(apellidos, noExpediente)
+    : consultarApiConsuladoLaHabanaAutenticado(apellidos, noExpediente);
+
+  const ahora = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss');
+  let resStatus = 'ERROR';
+  let estadoConsulado = '';
+  let d = {};
+
+  if (apiResult.ok) {
+    d = apiResult.datos || apiResult.resultado || {};
+    estadoConsulado = d.estado || d.resultadoExpediente || 'En Trámite';
+    resStatus = 'OK';
+
+    const notaVariante = apiResult.varianteUsada && apiResult.varianteUsada !== apellidos 
+      ? ` (Coincidencia con: "${apiResult.varianteUsada}")` 
+      : '';
+
+    // Asentar en bitácora
+    try {
+      if (typeof registrarLog === 'function') {
+        registrarLog(identificador, nombreCompleto, 'Consulta Consular', 'API La Habana', `Estado: ${estadoConsulado}${notaVariante}`);
+      }
+    } catch (eLog) {}
+
+    // Evaluar transición de estado si aplica
+    const estadoConsUpper = estadoConsulado.toUpperCase().trim();
+    if (estadoConsUpper.includes('FAVORABLE') || estadoConsUpper.includes('APROBADO') || estadoConsUpper.includes('INSCRITO') || estadoConsUpper.includes('DENEGADO')) {
+      const nuevoEstado = (estadoConsUpper.includes('DENEGADO')) ? 'RESUELTO DENEGADO' : 'RESUELTO FAVORABLE';
+      const modoPrueba = (typeof getConfig === 'function') ? getConfig('MODO_PRUEBA') : true;
+
+      if (!modoPrueba && rowIndexMain > 0 && sourceSheet) {
+        sourceSheet.getRange(rowIndexMain, 6).setValue(nuevoEstado); // Columna F: Estado
+        // Limpiar notificado para nuevo aviso
+        sourceSheet.getRange(rowIndexMain, 11).clearContent();
+        sourceSheet.getRange(rowIndexMain, 12).clearContent();
+
+        try {
+          if (typeof registrarLog === 'function') {
+            registrarLog(identificador, nombreCompleto, 'API La Habana', 'Cambio de Estado Automático', `Transición: A [${nuevoEstado}] por consulta oficial.`);
+          }
+        } catch (eLog2) {}
+      }
+    }
+
+  } else if (apiResult.noEncontrado) {
+    resStatus = 'NO_ENCONTRADO';
+    try {
+      if (typeof registrarLog === 'function') {
+        registrarLog(identificador, nombreCompleto, 'API La Habana', 'No Encontrado', 'Verificadas variantes de apellidos sin coincidencia');
+      }
+    } catch (eLog) {}
+  } else {
+    resStatus = 'ERROR';
+    try {
+      if (typeof registrarLog === 'function') {
+        registrarLog(identificador, nombreCompleto, 'API La Habana', 'Error Conexión', apiResult.detalle || apiResult.error || 'Error API');
+      }
+    } catch (eLog) {}
+  }
+
+  const fRes = _vc_extraerFechaHelper(d.fechaResolucion);
+  const fIns = _vc_extraerFechaHelper(d.fechaInscripcion);
+  const fPortal = _vc_extraerFechaHelper(d.updated) || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
+  const regTxt = _vc_formatarRegistralesHelper(d);
+
+  return {
+    ok: true,
+    resultado: resStatus,
+    estadoConsulado: estadoConsulado,
+    identificador: identificador,
+    noExpediente: noExpediente,
+    nombreCompleto: nombreCompleto,
+    nombreSistema: d.nombre || '',
+    progenitor: d.nombreProgenitor || '',
+    fechaPortal: fPortal,
+    fechaResolucion: fRes,
+    fechaInscripcion: fIns,
+    datosRegistrales: regTxt,
+    datos: d,
+    varianteUsada: apiResult.varianteUsada || apellidos,
+    detalle: apiResult.detalle || ''
+  };
+}
+
+function _vc_extraerFechaHelper(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, Session.getScriptTimeZone(), 'dd/MM/yyyy');
+  }
+  let raw = '';
+  if (typeof val === 'object' && val.date) {
+    raw = String(val.date).split(' ')[0].trim();
+  } else if (typeof val === 'string') {
+    const s = val.trim();
+    if (!s || s === 'null' || s === 'undefined') return '';
+    raw = s.split(' ')[0].split('T')[0].trim();
+  }
+  if (!raw) return '';
+
+  const matchIso = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (matchIso) {
+    const anio = matchIso[1];
+    const mes = matchIso[2].padStart(2, '0');
+    const dia = matchIso[3].padStart(2, '0');
+    return `${dia}/${mes}/${anio}`;
+  }
+  return raw;
+}
+
+function _vc_formatarRegistralesHelper(datos) {
+  if (!datos) return '';
+  const partes = [];
+  if (datos.tomo)   partes.push(`Tomo: ${datos.tomo}`);
+  if (datos.folio)  partes.push(`Folio: ${datos.folio}`);
+  if (datos.numero) partes.push(`Núm: ${datos.numero}`);
+
+  if (partes.length > 0) return partes.join(' | ');
+
+  const estadoStr = String(datos.estado || datos.resultadoExpediente || '').toLowerCase();
+  const fIns = _vc_extraerFechaHelper(datos.fechaInscripcion);
+
+  if ((estadoStr.includes('resuelto') || estadoStr.includes('aprobado') || fIns) && fIns) {
+    return 'RESUELTO CON LNE DICIREG';
+  }
+  return '';
+}
+
+/**
+ * Consulta autenticada con cascada de apellidos a la API del Consulado de La Habana
+ */
+function consultarApiConsuladoLaHabanaAutenticado(apellidosOriginal, noExpediente) {
+  const partes = String(apellidosOriginal || '').trim().split(/\s+/).filter(Boolean);
+  const variantes = [];
+  const agregarVariante = (str) => {
+    const s = str.trim();
+    if (s && !variantes.includes(s)) variantes.push(s);
+  };
+
+  agregarVariante(apellidosOriginal);
+  if (partes.length > 1) agregarVariante(partes[0]);
+  if (partes.length > 1) agregarVariante(partes[partes.length - 1]);
+  if (partes.length === 2) agregarVariante(`${partes[1]} ${partes[0]}`);
+
+  let ultimoDetalle = '';
+
+  for (let k = 0; k < variantes.length; k++) {
+    const varianteActual = variantes[k];
+
+    try {
+      const loginPayload = JSON.stringify({
+        apellidos:    varianteActual,
+        noExpediente: noExpediente + ' '
+      });
+
+      const loginOpts = {
+        method:             'post',
+        contentType:        'application/json',
+        payload:            loginPayload,
+        muteHttpExceptions: true,
+        followRedirects:    true
+      };
+
+      const loginResp   = UrlFetchApp.fetch('https://cgelahabana.es/api/login', loginOpts);
+      const loginStatus = loginResp.getResponseCode();
+
+      if (loginStatus === 404) {
+        ultimoDetalle = '404 No Encontrado';
+        Utilities.sleep(300);
+        continue;
+      }
+
+      if (loginStatus !== 200) {
+        return { ok: false, noEncontrado: false, detalle: `Login HTTP ${loginStatus}` };
+      }
+
+      const loginData = JSON.parse(loginResp.getContentText());
+      const token     = loginData.consultaToken || '';
+
+      const allHeaders = loginResp.getAllHeaders();
+      let cookieStr = '';
+      const rawCookies = allHeaders['Set-Cookie'] || allHeaders['set-cookie'];
+      if (rawCookies) {
+        const lista = Array.isArray(rawCookies) ? rawCookies : [rawCookies];
+        cookieStr = lista.map(c => c.split(';')[0]).join('; ');
+      }
+
+      const noExpedienteLMD = noExpediente.includes('-LMD') ? noExpediente : noExpediente + '-LMD';
+      const getUrl = 'https://cgelahabana.es/api/expedientes/' + encodeURIComponent(noExpedienteLMD);
+
+      const getHeaders = { 'Authorization': 'Bearer ' + token };
+      if (cookieStr) getHeaders['Cookie'] = cookieStr;
+
+      const getOpts = {
+        method:             'get',
+        muteHttpExceptions: true,
+        headers:            getHeaders
+      };
+
+      const statusResp = UrlFetchApp.fetch(getUrl, getOpts);
+      const statusCode = statusResp.getResponseCode();
+
+      if (statusCode !== 200) {
+        return { ok: false, noEncontrado: false, detalle: `Estado HTTP ${statusCode}` };
+      }
+
+      const resData = JSON.parse(statusResp.getContentText());
+      return {
+        ok: true,
+        datos: resData,
+        varianteUsada: varianteActual
+      };
+
+    } catch (e) {
+      ultimoDetalle = e.message;
+    }
+  }
+
+  return { ok: false, noEncontrado: true, detalle: ultimoDetalle };
+}
+
+/**
+ * Obtiene métricas y KPIs para el Dashboard Ejecutivo y Centro de Automatizaciones
+ */
+function obtenerDashboardKPIsParaPortal() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const mainSheet = ss.getSheetByName(SHEET_NAME);
+  if (!mainSheet) return { ok: false, error: `No se encontró la hoja "${SHEET_NAME}".` };
+
+  const dataMain = mainSheet.getDataRange().getValues();
+  const richData = mainSheet.getDataRange().getRichTextValues();
+  const props = PropertiesService.getDocumentProperties();
+
+  const hoy = new Date();
+  const carenciaResolucion = (typeof getConfig === 'function') ? getConfig("DIAS_CARENCIA_RESOLUCION") : 60;
+  const cicloSeguimiento = (typeof getConfig === 'function') ? getConfig("DIAS_CICLO_SEGUIMIENTO") : 30;
+  const cicloTramites = (typeof getConfig === 'function') ? getConfig("DIAS_CICLO_TRAMITES") : 30;
+
+  let total = 0;
+  let pendientesResolucion = 0;
+  let pendientesCita = 0;
+  let pendientesCredenciales = 0;
+  let resueltosFavorables = 0;
+  let resueltosDenegados = 0;
+  let recursosPresentados = 0;
+  let notificadosSi = 0;
+  let notificadosNo = 0;
+
+  // Métricas Exactas de Automatizaciones
+  let vencimientosPendientes = 0;
+  let pendientesEnvioReal = 0;
+  let habanaPendientes = 0;
+
+  const consuladosConteo = {};
+  let favorableDatosReg = 0;
+  let favorableDicireg = 0;
+
+  for (let i = 1; i < dataMain.length; i++) {
+    total++;
+    const f = dataMain[i];
+    const nombre = String(f[0] || '').trim();
+    const apellido = String(f[1] || '').trim();
+    const consulado = String(f[2] || 'CUBA LA HABANA').trim().toUpperCase();
+    const noExp = String(f[4] || '').trim();
+    const estado = String(f[5] || '').trim().toUpperCase();
+    const detalle = String(f[6] || '').trim().toUpperCase();
+    const identificador = String(f[8] || '').trim();
+    const emailRaw = extraerEmailReal(f[9], richData[i][9]);
+    const notif = String(f[10] || '').trim().toUpperCase();
+    const fechaUltimaNotif = f[11];
+    const baja = String(f[12] || '').trim().toUpperCase();
+
+    consuladosConteo[consulado] = (consuladosConteo[consulado] || 0) + 1;
+
+    if (estado === 'PENDIENTE RESOLUCION') {
+      pendientesResolucion++;
+      if (consulado.includes('HABANA')) habanaPendientes++;
+    } else if (estado === 'PENDIENTE DE CITA') {
+      pendientesCita++;
+    } else if (estado === 'PENDIENTE DE CREDENCIALES') {
+      pendientesCredenciales++;
+    } else if (estado.includes('RESUELTO FAVORABLE')) {
+      resueltosFavorables++;
+      if (detalle.includes('DICIREG')) favorableDicireg++;
+      else favorableDatosReg++;
+    } else if (estado.includes('DENEGADO')) {
+      resueltosDenegados++;
+    } else if (estado.includes('RECURSO')) {
+      recursosPresentados++;
+    }
+
+    if (notif === 'SI') {
+      notificadosSi++;
+      // Evaluación de vencimiento (Auditor Nocturno)
+      if (fechaUltimaNotif instanceof Date) {
+        const diffDias = Math.floor((hoy - fechaUltimaNotif) / (1000 * 60 * 60 * 24));
+        const cicloReq = (estado === 'PENDIENTE DE CREDENCIALES' || estado === 'PENDIENTE DE CITA') ? cicloTramites : cicloSeguimiento;
+        if (diffDias >= cicloReq) {
+          vencimientosPendientes++;
+        }
+      }
+    } else {
+      notificadosNo++;
+      // Evaluación de envío real (Motor de Envíos)
+      if (nombre && apellido && identificador && emailRaw && emailRaw.includes('@') && baja !== 'SI') {
+        const esTerminal = ["RESUELTO FAVORABLE", "RESUELTO DENEGADO", "RESUELTO", "NO PRESENTADO", "RECURSO FAVORABLE", "RECURSO DENEGADO"].includes(estado);
+        if (!esTerminal || (esTerminal && notif !== 'SI')) {
+          let cumpleCarencia = true;
+          if (estado === 'PENDIENTE RESOLUCION' || estado === 'RECURSO PRESENTADO') {
+            const fechaCitaMatch = detalle.match(/(\d{2})[-/](\d{2})[-/](\d{4})/);
+            if (fechaCitaMatch) {
+              const fCita = new Date(fechaCitaMatch[3], fechaCitaMatch[2] - 1, fechaCitaMatch[1]);
+              const diasDesdeCita = Math.floor((hoy - fCita) / (1000 * 60 * 60 * 24));
+              if (diasDesdeCita < carenciaResolucion) cumpleCarencia = false;
+            }
+          }
+          if (cumpleCarencia) pendientesEnvioReal++;
+        }
+      }
+    }
+  }
+
+  const modoPrueba = (typeof getConfig === 'function') ? getConfig('MODO_PRUEBA') : true;
+  const emailPrueba = (typeof getConfig === 'function') ? getConfig('EMAIL_PRUEBA') : 'yanglienlc@gmail.com';
+
+  return {
+    ok: true,
+    totalExpedientes: total,
+    pendientesResolucion: pendientesResolucion,
+    pendientesCita: pendientesCita,
+    pendientesCredenciales: pendientesCredenciales,
+    resueltosFavorables: resueltosFavorables,
+    resueltosDenegados: resueltosDenegados,
+    recursosPresentados: recursosPresentados,
+    favorableDicireg: favorableDicireg,
+    favorableDatosReg: favorableDatosReg,
+    notificadosSi: notificadosSi,
+    notificadosNo: notificadosNo,
+    vencimientosPendientes: vencimientosPendientes,
+    pendientesEnvioReal: pendientesEnvioReal,
+    habanaPendientes: habanaPendientes,
+    termometroHabana: props.getProperty('TERMOMETRO_HABANA') || 'Aún no hay datos registrados',
+    termometroMiami: props.getProperty('TERMOMETRO_MIAMI') || 'Aún no hay datos registrados',
+    modoPrueba: modoPrueba,
+    emailPrueba: emailPrueba,
+    consuladosRanking: consuladosConteo
+  };
+}
+
+/**
+ * Endpoint Ultra-Rápido Unificado: Ejecuta lectura única de memoria (Single-Pass Scan)
+ * Construye expedientes, calcula KPIs y extrae citas en un solo bucle lineal (~1.2s).
+ */
+function obtenerBootstrapSistemaUnificado() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const mainSheet = ss.getSheetByName(SHEET_NAME);
+  if (!mainSheet) return { ok: false, error: `No se encontró la hoja "${SHEET_NAME}".` };
+
+  const credSheet = (typeof _citas_obtenerOCrearHojaCredenciales === 'function')
+    ? _citas_obtenerOCrearHojaCredenciales(ss)
+    : ss.getSheetByName("CREDENCIALES_LMD");
+
+  const dataMain = mainSheet.getDataRange().getValues();
+  const richData = mainSheet.getDataRange().getRichTextValues();
+
+  // 1. Mapa de Credenciales
+  const mapaCred = {};
+  if (credSheet && credSheet.getLastRow() >= 2) {
+    const cols = (typeof _citas_obtenerIndicesCredenciales === 'function')
+      ? _citas_obtenerIndicesCredenciales(credSheet)
+      : { id: 0, usuario: 3, password: 4, estadoCita: 5, urgencia: 6, preferencia: 7, fechaCita: 8 };
+
+    const dataCred = credSheet.getRange(2, 1, credSheet.getLastRow() - 1, credSheet.getLastColumn()).getValues();
+    for (let c = 0; c < dataCred.length; c++) {
+      const f = dataCred[c];
+      const idC = String(f[cols.id] || '').trim();
+      if (idC) {
+        mapaCred[idC] = {
+          usuarioConsular: String(f[cols.usuario] || '').trim(),
+          passwordConsular: String(f[cols.password] || '').trim(),
+          estadoCita: String(f[cols.estadoCita] || '').trim(),
+          urgencia: String(f[cols.urgencia] || '').trim(),
+          preferencia: String(f[cols.preferencia] || '').trim(),
+          fechaCita: String(f[cols.fechaCita] || '').trim()
+        };
+      }
+    }
+  }
+
+  // 1.1. Mapa de Verificaciones La Habana (VERIFICACION_CONSULAR)
+  const mapaHabana = {};
+  const listaHabana = [];
+  const sheetHab = ss.getSheetByName("VERIFICACION_CONSULAR");
+  if (sheetHab && sheetHab.getLastRow() >= 2) {
+    const dataHab = sheetHab.getRange(2, 1, sheetHab.getLastRow() - 1, Math.max(13, sheetHab.getLastColumn())).getValues();
+    for (let h = 0; h < dataHab.length; h++) {
+      const f = dataHab[h];
+      const idH = String(f[3] || '').trim();
+      if (idH) {
+        let fResol = f[8] ? (f[8] instanceof Date ? Utilities.formatDate(f[8], Session.getScriptTimeZone(), "dd/MM/yyyy") : String(f[8])) : '';
+        let fInsc = f[9] ? (f[9] instanceof Date ? Utilities.formatDate(f[9], Session.getScriptTimeZone(), "dd/MM/yyyy") : String(f[9])) : '';
+        let fUlt = f[12] ? (f[12] instanceof Date ? Utilities.formatDate(f[12], Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss") : String(f[12])) : '';
+
+        const itemHab = {
+          nombre: String(f[0] || ''),
+          apellidos: String(f[1] || ''),
+          nombreCompleto: `${String(f[0] || '')} ${String(f[1] || '')}`.trim(),
+          numeroExpediente: String(f[2] || ''),
+          identificador: idH,
+          estadoConsulado: String(f[4] || 'PENDIENTE'),
+          nombreSistema: String(f[5] || ''),
+          progenitor: String(f[6] || ''),
+          fechaPortal: String(f[7] || ''),
+          fechaResolucion: fResol,
+          fechaInscripcion: fInsc,
+          datosRegistrales: String(f[10] || ''),
+          resultado: String(f[11] || 'OK'),
+          ultimaVerificacion: fUlt
+        };
+        mapaHabana[idH] = itemHab;
+        listaHabana.push(itemHab);
+      }
+    }
+  }
+
+  // 1.2. Mapa de Verificaciones RCC España (VERIFICACION_RCC)
+  const mapaRCC = {};
+  const listaRCC = [];
+  const sheetRcc = ss.getSheetByName("VERIFICACION_RCC");
+  if (sheetRcc && sheetRcc.getLastRow() >= 2) {
+    const dataRcc = sheetRcc.getRange(2, 1, sheetRcc.getLastRow() - 1, Math.max(10, sheetRcc.getLastColumn())).getValues();
+    for (let r = 0; r < dataRcc.length; r++) {
+      const f = dataRcc[r];
+      const idR = String(f[4] || '').trim();
+      if (idR) {
+        let fUlt = f[9] ? (f[9] instanceof Date ? Utilities.formatDate(f[9], Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss") : String(f[9])) : '';
+        const itemRcc = {
+          nombre: String(f[0] || ''),
+          apellidos: String(f[1] || ''),
+          nombreCompleto: `${String(f[0] || '')} ${String(f[1] || '')}`.trim(),
+          numeroExpediente: String(f[2] || ''),
+          anioExpediente: String(f[3] || ''),
+          identificador: idR,
+          estadoRCC: String(f[5] || 'EN TRAMITACION'),
+          nombreSistema: String(f[6] || ''),
+          detalleOficial: String(f[7] || ''),
+          resultado: String(f[8] || 'OK'),
+          ultimaVerificacion: fUlt
+        };
+        mapaRCC[idR] = itemRcc;
+        listaRCC.push(itemRcc);
+      }
+    }
+  }
+
+  // 2. Parámetros de Configuración
+  const configActual = (typeof obtenerConfiguracionActual === 'function') ? obtenerConfiguracionActual() : {};
+  const props = PropertiesService.getDocumentProperties();
+  configActual.TERMOMETRO_HABANA = props.getProperty('TERMOMETRO_HABANA') || "Aún no hay datos registrados";
+  configActual.TERMOMETRO_MIAMI = props.getProperty('TERMOMETRO_MIAMI') || "Aún no hay datos registrados";
+
+  const carenciaResolucion = configActual.DIAS_CARENCIA_RESOLUCION || 60;
+  const cicloSeguimiento = configActual.DIAS_CICLO_SEGUIMIENTO || 30;
+  const cicloTramites = configActual.DIAS_CICLO_TRAMITES || 30;
+  const hoy = new Date();
+
+  // 3. Acumuladores de Expedientes, KPIs y Citas
+  const expedientes = [];
+  const candidatosCitas = [];
+  const consuladosSet = new Set();
+  const consuladosConteo = {};
+
+  let total = 0;
+  let pendientesResolucion = 0;
+  let pendientesCita = 0;
+  let pendientesCredenciales = 0;
+  let resueltosFavorables = 0;
+  let resueltosDenegados = 0;
+  let recursosPresentados = 0;
+  let notificadosSi = 0;
+  let notificadosNo = 0;
+  let vencimientosPendientes = 0;
+  let pendientesEnvioReal = 0;
+  let habanaPendientes = 0;
+  let favorableDatosReg = 0;
+  let favorableDicireg = 0;
+
+  // 4. Bucle Único Lineal de Memoria (Single-Pass)
+  for (let i = 1; i < dataMain.length; i++) {
+    total++;
+    const f = dataMain[i];
+    let id = String(f[8] || '').trim();
+    if (!id || id.startsWith('=')) id = 'I' + i;
+
+    const nombre = String(f[0] || '').trim();
+    const apellidos = String(f[1] || '').trim();
+    const consulado = String(f[2] || 'CUBA LA HABANA').trim().toUpperCase();
+    if (consulado) {
+      consuladosSet.add(consulado);
+      consuladosConteo[consulado] = (consuladosConteo[consulado] || 0) + 1;
+    }
+
+    const correoCreado = String(f[3] || '').trim();
+    const noExpediente = String(f[4] || '').trim();
+    const estadoOficial = String(f[5] || '').trim().toUpperCase() || 'PENDIENTE RESOLUCION';
+    const detalle = String(f[6] || '').trim();
+    const observaciones = String(f[7] || '').trim();
+    const emailPersonal = extraerEmailReal(f[9], richData[i][9]);
+    const notificado = String(f[10] || '').trim().toUpperCase();
+    const fechaUltimaNotif = f[11] ? (f[11] instanceof Date ? Utilities.formatDate(f[11], Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm") : String(f[11])) : '';
+    const baja = String(f[12] || '').trim().toUpperCase();
+
+    const cred = mapaCred[id] || {};
+    const verifHab = mapaHabana[id] || null;
+    const verifRcc = mapaRCC[id] || null;
+
+    // Expediente completo para frontend
+    expedientes.push({
+      rowIndex: i + 1,
+      identificador: id,
+      nombre: nombre,
+      apellidos: apellidos,
+      nombreCompleto: `${nombre} ${apellidos}`.trim(),
+      consulado: consulado || 'CUBA LA HABANA',
+      correoCreado: correoCreado,
+      noExpediente: noExpediente,
+      estado: estadoOficial,
+      detalle: detalle,
+      observaciones: observaciones,
+      email: emailPersonal,
+      notificado: notificado,
+      fechaUltimaNotificacion: fechaUltimaNotif,
+      baja: baja,
+      usuarioConsular: cred.usuarioConsular || '',
+      passwordConsular: cred.passwordConsular || '',
+      estadoCita: cred.estadoCita || '',
+      urgencia: cred.urgencia || 'NORMAL',
+      preferencia: cred.preferencia || 'FLEXIBLE',
+      fechaCita: cred.fechaCita || '',
+      verificacionHabana: verifHab,
+      verificacionRCC: verifRcc
+    });
+
+    // Clasificación de Candidatos a Citas (Excluyendo quienes ya tienen cita programada)
+    const detalleUpper = detalle.toUpperCase();
+    const estadoCitaUpper = String(cred.estadoCita || '').toUpperCase();
+    const tieneCitaFijada = detalleUpper.includes('CITA PROGRAMADA') || estadoCitaUpper.includes('PROGRAMADA');
+
+    if (estadoOficial === 'PENDIENTE DE CITA' && !tieneCitaFijada) {
+      candidatosCitas.push({
+        rowIndex: i + 1,
+        identificador: id,
+        nombre: nombre,
+        apellidos: apellidos,
+        nombreCompleto: `${nombre} ${apellidos}`.trim(),
+        consulado: consulado,
+        correoCreado: correoCreado,
+        email: emailPersonal,
+        urgencia: cred.urgencia || 'NORMAL',
+        preferencia: cred.preferencia || 'FLEXIBLE',
+        usuarioConsular: cred.usuarioConsular || '',
+        passwordConsular: cred.passwordConsular || '',
+        fechaCita: cred.fechaCita || ''
+      });
+    }
+
+    // Cálculo de KPIs
+    if (estadoOficial === 'PENDIENTE RESOLUCION') {
+      pendientesResolucion++;
+      if (consulado.includes('HABANA')) habanaPendientes++;
+    } else if (estadoOficial === 'PENDIENTE DE CITA') {
+      pendientesCita++;
+    } else if (estadoOficial === 'PENDIENTE DE CREDENCIALES') {
+      pendientesCredenciales++;
+    } else if (estadoOficial.includes('RESUELTO FAVORABLE')) {
+      resueltosFavorables++;
+      if (detalle.toUpperCase().includes('DICIREG')) favorableDicireg++;
+      else favorableDatosReg++;
+    } else if (estadoOficial.includes('DENEGADO')) {
+      resueltosDenegados++;
+    } else if (estadoOficial.includes('RECURSO')) {
+      recursosPresentados++;
+    }
+
+    if (notificado === 'SI') {
+      notificadosSi++;
+      if (f[11] instanceof Date) {
+        const diffDias = Math.floor((hoy - f[11]) / (1000 * 60 * 60 * 24));
+        const cicloReq = (estadoOficial === 'PENDIENTE DE CREDENCIALES' || estadoOficial === 'PENDIENTE DE CITA') ? cicloTramites : cicloSeguimiento;
+        if (diffDias >= cicloReq) vencimientosPendientes++;
+      }
+    } else {
+      notificadosNo++;
+      if (nombre && apellidos && id && emailPersonal && emailPersonal.includes('@') && baja !== 'SI') {
+        const esTerminal = ["RESUELTO FAVORABLE", "RESUELTO DENEGADO", "RESUELTO", "NO PRESENTADO", "RECURSO FAVORABLE", "RECURSO DENEGADO"].includes(estadoOficial);
+        if (!esTerminal || (esTerminal && notificado !== 'SI')) {
+          let cumpleCarencia = true;
+          if (estadoOficial === 'PENDIENTE RESOLUCION' || estadoOficial === 'RECURSO PRESENTADO') {
+            const fechaCitaMatch = detalle.match(/(\d{2})[-/](\d{2})[-/](\d{4})/);
+            if (fechaCitaMatch) {
+              const fCita = new Date(fechaCitaMatch[3], fechaCitaMatch[2] - 1, fechaCitaMatch[1]);
+              const diasDesdeCita = Math.floor((hoy - fCita) / (1000 * 60 * 60 * 24));
+              if (diasDesdeCita < carenciaResolucion) cumpleCarencia = false;
+            }
+          }
+          if (cumpleCarencia) pendientesEnvioReal++;
+        }
+      }
+    }
+  }
+
+  const modoPruebaBool = (configActual.MODO_PRUEBA !== undefined) ? (configActual.MODO_PRUEBA === true || configActual.MODO_PRUEBA === 'true' || configActual.MODO_PRUEBA === 1 || configActual.MODO_PRUEBA === '1') : true;
+
+  const dashboardKPIs = {
+    ok: true,
+    totalExpedientes: total,
+    pendientesResolucion: pendientesResolucion,
+    pendientesCita: pendientesCita,
+    pendientesCredenciales: pendientesCredenciales,
+    resueltosFavorables: resueltosFavorables,
+    resueltosDenegados: resueltosDenegados,
+    recursosPresentados: recursosPresentados,
+    favorableDicireg: favorableDicireg,
+    favorableDatosReg: favorableDatosReg,
+    notificadosSi: notificadosSi,
+    notificadosNo: notificadosNo,
+    vencimientosPendientes: vencimientosPendientes,
+    pendientesEnvioReal: pendientesEnvioReal,
+    habanaPendientes: habanaPendientes,
+    termometroHabana: props.getProperty('TERMOMETRO_HABANA') || 'Aún no hay datos registrados',
+    termometroMiami: props.getProperty('TERMOMETRO_MIAMI') || 'Aún no hay datos registrados',
+    modoPrueba: modoPruebaBool,
+    emailPrueba: configActual.EMAIL_PRUEBA || 'yanglienlc@gmail.com',
+    consuladosRanking: consuladosConteo
+  };
+
+  return {
+    ok: true,
+    success: true,
+    expedientes: expedientes,
+    consulados: Array.from(consuladosSet),
+    dashboardKPIs: dashboardKPIs,
+    configSistema: configActual,
+    citas: candidatosCitas,
+    verificacionesHabana: listaHabana,
+    verificacionesRCC: listaRCC,
+    modoPrueba: modoPruebaBool
+  };
+}
+
+/**
+ * Obtiene todos los expedientes de EXPEDIENTES LMD cruzados con CREDENCIALES_LMD
+ */
+function obtenerTodosExpedientesParaPortal() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const mainSheet = ss.getSheetByName(SHEET_NAME);
+  if (!mainSheet) return { ok: false, error: `No se encontró la hoja "${SHEET_NAME}".` };
+
+  const credSheet = (typeof _citas_obtenerOCrearHojaCredenciales === 'function')
+    ? _citas_obtenerOCrearHojaCredenciales(ss)
+    : ss.getSheetByName("CREDENCIALES_LMD");
+
+  const dataMain = mainSheet.getDataRange().getValues();
+  const richData = mainSheet.getDataRange().getRichTextValues();
+
+  const mapaCred = {};
+  if (credSheet && credSheet.getLastRow() >= 2) {
+    const cols = (typeof _citas_obtenerIndicesCredenciales === 'function')
+      ? _citas_obtenerIndicesCredenciales(credSheet)
+      : { id: 0, usuario: 3, password: 4, estadoCita: 5, urgencia: 6, preferencia: 7, fechaCita: 8 };
+
+    const dataCred = credSheet.getRange(2, 1, credSheet.getLastRow() - 1, credSheet.getLastColumn()).getValues();
+    for (let c = 0; c < dataCred.length; c++) {
+      const f = dataCred[c];
+      const idC = String(f[cols.id] || '').trim();
+      if (idC) {
+        mapaCred[idC] = {
+          usuarioConsular: String(f[cols.usuario] || '').trim(),
+          passwordConsular: String(f[cols.password] || '').trim(),
+          estadoCita: String(f[cols.estadoCita] || '').trim(),
+          urgencia: String(f[cols.urgencia] || '').trim(),
+          preferencia: String(f[cols.preferencia] || '').trim(),
+          fechaCita: String(f[cols.fechaCita] || '').trim()
+        };
+      }
+    }
+  }
+
+  const expedientes = [];
+  const consuladosSet = new Set();
+
+  for (let i = 1; i < dataMain.length; i++) {
+    const f = dataMain[i];
+    let id = String(f[8] || '').trim();
+    if (!id || id.startsWith('=')) id = 'I' + i;
+
+    const nombre = String(f[0] || '').trim();
+    const apellidos = String(f[1] || '').trim();
+    const consulado = String(f[2] || '').trim().toUpperCase();
+    if (consulado) consuladosSet.add(consulado);
+
+    const correoCreado = String(f[3] || '').trim();
+    const noExpediente = String(f[4] || '').trim();
+    const estadoOficial = String(f[5] || '').trim().toUpperCase() || 'PENDIENTE RESOLUCION';
+    const detalle = String(f[6] || '').trim();
+    const observaciones = String(f[7] || '').trim();
+    const emailPersonal = extraerEmailReal(f[9], richData[i][9]);
+    const notificado = String(f[10] || '').trim().toUpperCase();
+    const fechaUltimaNotif = f[11] ? (f[11] instanceof Date ? Utilities.formatDate(f[11], Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm") : String(f[11])) : '';
+    const baja = String(f[12] || '').trim().toUpperCase();
+
+    const cred = mapaCred[id] || {};
+
+    expedientes.push({
+      rowIndex: i + 1,
+      identificador: id,
+      nombre: nombre,
+      apellidos: apellidos,
+      nombreCompleto: `${nombre} ${apellidos}`.trim(),
+      consulado: consulado || 'CUBA LA HABANA',
+      correoCreado: correoCreado,
+      noExpediente: noExpediente,
+      estado: estadoOficial,
+      detalle: detalle,
+      observaciones: observaciones,
+      email: emailPersonal,
+      notificado: notificado === 'SI' ? 'SI' : 'NO',
+      fechaUltimaNotificacion: fechaUltimaNotif,
+      baja: baja === 'SI' ? 'SI' : 'NO',
+      usuarioConsular: cred.usuarioConsular || '',
+      passwordConsular: cred.passwordConsular || '',
+      estadoCita: cred.estadoCita || 'CITA PENDIENTE',
+      urgencia: cred.urgencia || '2. MEDIA / NORMAL',
+      preferencia: cred.preferencia || 'CUALQUIER FECHA',
+      fechaCita: cred.fechaCita || ''
+    });
+  }
+
+  return {
+    ok: true,
+    expedientes: expedientes,
+    total: expedientes.length,
+    consulados: Array.from(consuladosSet)
+  };
+}
+
+/**
+ * Auto-Registro en Data_Mapping
+ */
+function _autoRegistrarConsuladoEnDataMapping(ss, consuladoOriginal) {
+  if (!consuladoOriginal) return;
+  const mapSheet = ss.getSheetByName("Data_Mapping");
+  if (!mapSheet) return;
+
+  const data = mapSheet.getDataRange().getValues();
+  const textoBuscado = consuladoOriginal.trim().toUpperCase();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0] || '').trim().toUpperCase() === textoBuscado) {
+      return;
+    }
+  }
+
+  let tipo = "Internacional";
+  let pais = consuladoOriginal;
+  let sede = consuladoOriginal;
+
+  if (textoBuscado.startsWith("USA ")) {
+    pais = "Estados Unidos";
+    sede = consuladoOriginal.substring(4).trim();
+  } else if (textoBuscado.startsWith("CUBA ")) {
+    pais = "Cuba";
+    sede = consuladoOriginal.substring(5).trim();
+  } else if (textoBuscado.startsWith("ESPAÑA") || textoBuscado.startsWith("ESPANA")) {
+    tipo = "España";
+    pais = "España";
+    sede = consuladoOriginal.replace(/ESPAÑA|ESPANA|-/g, '').trim() || "España";
+  } else if (textoBuscado.startsWith("ARGENTINA ")) {
+    pais = "Argentina";
+    sede = consuladoOriginal.substring(10).trim();
+  } else if (textoBuscado.startsWith("MEXICO ")) {
+    pais = "México";
+    sede = consuladoOriginal.substring(7).trim();
+  }
+
+  mapSheet.appendRow([consuladoOriginal, tipo, pais, sede]);
+}
+
+function guardarExpedienteGeneralDesdePortal(rawDatos) {
+  const datos = (rawDatos && rawDatos.datos && typeof rawDatos.datos === 'object') ? rawDatos.datos : (rawDatos || {});
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const mainSheet = ss.getSheetByName(SHEET_NAME);
+  if (!mainSheet) return { ok: false, error: `No se encontró la hoja "${SHEET_NAME}".` };
+
+  const id = String(datos.identificador || '').trim();
+  const snapshot = datos.snapshot || {};
+  const consuladoNuevo = String(datos.consulado || '').trim().toUpperCase();
+  
+  _autoRegistrarConsuladoEnDataMapping(ss, consuladoNuevo);
+
+  const dataMain = mainSheet.getDataRange().getValues();
+  let filaEncontrada = -1;
+
+  // ─────────────────────────────────────────────
+  // 4 NIVELES DE SEGURIDAD PARA LOCALIZACIÓN EXACTA
+  // ─────────────────────────────────────────────
+  if (id) {
+    const idNum = parseInt(id.replace(/\D/g, ''), 10);
+    const filaCandidata = (!isNaN(idNum) && idNum >= 1) ? (idNum + 1) : -1;
+
+    // Nivel 1 & 2: Comprobación directa en la Fila Matemática (ej: I802 -> Fila 803)
+    if (filaCandidata > 1 && filaCandidata <= dataMain.length) {
+      const filaData = dataMain[filaCandidata - 1];
+      const nombreEnHoja = String(filaData[0] || '').trim().toUpperCase();
+      const apellidosEnHoja = String(filaData[1] || '').trim().toUpperCase();
+      const idEnHoja = String(filaData[8] || '').trim();
+
+      const snapNombre = String(snapshot.nombre || '').trim().toUpperCase();
+      const snapApellidos = String(snapshot.apellidos || '').trim().toUpperCase();
+
+      // Validación con Snapshot Original o Identificador
+      const coincidePorSnapshot = snapNombre && (nombreEnHoja === snapNombre || apellidosEnHoja === snapApellidos);
+      const coincidePorId = idEnHoja === id || ('I' + idEnHoja) === id || idEnHoja === String(idNum);
+
+      if (coincidePorSnapshot || coincidePorId) {
+        filaEncontrada = filaCandidata;
+      }
+    }
+
+    // Nivel 3: Respaldo por búsqueda de ID en Columna I si hubo filas manuales desplazadas
+    if (filaEncontrada === -1) {
+      for (let i = 1; i < dataMain.length; i++) {
+        let cellId = String(dataMain[i][8] || '').trim();
+        if (cellId === id || ('I' + cellId) === id || cellId === String(idNum)) {
+          filaEncontrada = i + 1;
+          break;
+        }
+      }
+    }
+
+    // Nivel 4: Respaldo por Nombre y Apellidos del Snapshot previo
+    if (filaEncontrada === -1 && snapshot.nombre && snapshot.apellidos) {
+      const sNom = String(snapshot.nombre).trim().toUpperCase();
+      const sApe = String(snapshot.apellidos).trim().toUpperCase();
+      for (let i = 1; i < dataMain.length; i++) {
+        let fNom = String(dataMain[i][0] || '').trim().toUpperCase();
+        let fApe = String(dataMain[i][1] || '').trim().toUpperCase();
+        if (fNom === sNom && fApe === sApe) {
+          filaEncontrada = i + 1;
+          break;
+        }
+      }
+    }
+  }
+
+  // Si es edición de expediente existente, sobreescribir las columnas sin tocar la fórmula de ID
+  if (filaEncontrada > 1) {
+    const estadoAnterior = String(mainSheet.getRange(filaEncontrada, 6).getValue() || '').trim().toUpperCase();
+    const estadoNuevo = datos.estado !== undefined ? String(datos.estado).trim().toUpperCase() : estadoAnterior;
+
+    if (datos.nombre !== undefined) mainSheet.getRange(filaEncontrada, 1).setValue(datos.nombre);
+    if (datos.apellidos !== undefined) mainSheet.getRange(filaEncontrada, 2).setValue(datos.apellidos);
+    if (datos.consulado !== undefined) mainSheet.getRange(filaEncontrada, 3).setValue(consuladoNuevo);
+    if (datos.correoCreado !== undefined) mainSheet.getRange(filaEncontrada, 4).setValue(datos.correoCreado);
+    if (datos.noExpediente !== undefined) mainSheet.getRange(filaEncontrada, 5).setValue(datos.noExpediente);
+    if (datos.estado !== undefined) mainSheet.getRange(filaEncontrada, 6).setValue(datos.estado);
+    if (datos.detalle !== undefined) mainSheet.getRange(filaEncontrada, 7).setValue(datos.detalle);
+    if (datos.observaciones !== undefined) mainSheet.getRange(filaEncontrada, 8).setValue(datos.observaciones);
+    if (datos.email !== undefined) mainSheet.getRange(filaEncontrada, 10).setValue(datos.email);
+    
+    // REGLA ONEDIT: Si hubo cambio de estado, establecer Notificado en "NO" y limpiar Fecha Último Envío
+    if (estadoNuevo !== estadoAnterior) {
+      mainSheet.getRange(filaEncontrada, 11).setValue("NO");
+      mainSheet.getRange(filaEncontrada, 12).clearContent();
+
+      // Registro de Auditoría en LOGS_SISTEMA
+      try {
+        if (typeof registrarLog === 'function') {
+          registrarLog(
+            id || ('I' + (filaEncontrada - 1)),
+            `${datos.nombre || ''} ${datos.apellidos || ''}`.trim(),
+            datos.email || '',
+            "Cambio de Estado (Portal Web)",
+            `Transición: De [${estadoAnterior}] a [${estadoNuevo}]. Notificación reiniciada automáticamente.`
+          );
+        }
+      } catch (e) {
+        console.log(`[LOG FAIL] ${e.message}`);
+      }
+    } else {
+      if (datos.notificado !== undefined) mainSheet.getRange(filaEncontrada, 11).setValue(datos.notificado);
+      if (datos.fechaUltimaNotificacion !== undefined) mainSheet.getRange(filaEncontrada, 12).setValue(datos.fechaUltimaNotificacion);
+    }
+    if (datos.baja !== undefined) mainSheet.getRange(filaEncontrada, 13).setValue(datos.baja);
+  } else {
+    // Si es alta de nuevo expediente, insertar fila con la fórmula oficial ="I" & (ROW()-1)
+    mainSheet.appendRow([
+      datos.nombre || '',
+      datos.apellidos || '',
+      consuladoNuevo || 'CUBA LA HABANA',
+      datos.correoCreado || '',
+      datos.noExpediente || '',
+      datos.estado || 'PENDIENTE RESOLUCION',
+      datos.detalle || '',
+      datos.observaciones || 'Creado desde Portal Web',
+      `="I" & (ROW()-1)`,
+      datos.email || '',
+      'NO',
+      '',
+      datos.baja || 'NO'
+    ]);
+  }
+
+  registrarLog(id || 'NUEVO', `${datos.nombre || ''} ${datos.apellidos || ''}`.trim(), datos.email || '', "Edición Expediente", `Consulado: ${consuladoNuevo}, Estado: ${datos.estado || 'N/A'}`);
+  return { ok: true, mensaje: "Expediente guardado exitosamente" };
+}
+
+function guardarCredencialesCitasDesdePortal(rawDatos) {
+  const datos = (rawDatos && rawDatos.datos && typeof rawDatos.datos === 'object') ? rawDatos.datos : (rawDatos || {});
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let credSheet = (typeof _citas_obtenerOCrearHojaCredenciales === 'function')
+    ? _citas_obtenerOCrearHojaCredenciales(ss)
+    : ss.getSheetByName("CREDENCIALES_LMD");
+
+  if (!credSheet) {
+    credSheet = ss.insertSheet("CREDENCIALES_LMD");
+    const headers = [
+      'Identificador', 'Nombre Completo', 'Consulado',
+      'Usuario Consular', 'Contraseña Consular',
+      'Estado Cita', 'Nivel de Urgencia', 'Fecha Cita Asignada', 'Preferencia / Modo', 'Última Verificación'
+    ];
+    credSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    credSheet.getRange(1, 1, 1, headers.length).setBackground('#000000').setFontColor('#D4AF37').setFontWeight('bold');
+  }
+
+  const id = String(datos.identificador || '').trim();
+  if (!id) return { ok: false, error: 'Identificador no especificado' };
+
+  const cols = (typeof _citas_obtenerIndicesCredenciales === 'function')
+    ? _citas_obtenerIndicesCredenciales(credSheet)
+    : { id: 0, nombre: 1, consulado: 2, usuario: 3, password: 4, estadoCita: 5, urgencia: 6, fechaCita: 7, preferencia: 8, ultimaVerif: 9 };
+
+  const lastRow = credSheet.getLastRow();
+  let filaEncontrada = -1;
+
+  if (lastRow >= 2) {
+    const dataCred = credSheet.getRange(2, cols.id + 1, lastRow - 1, 1).getValues();
+    for (let r = 0; r < dataCred.length; r++) {
+      const cellId = String(dataCred[r][0] || '').trim();
+      if (cellId === id || ('I' + cellId) === id || cellId.replace(/\D/g, '') === id.replace(/\D/g, '')) {
+        filaEncontrada = r + 2;
+        break;
+      }
+    }
+  }
+
+  const ahora = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss');
+  const estadoAsignado = datos.fechaCita ? "CITA PROGRAMADA" : (datos.estadoCita || "CITA PENDIENTE");
+
+  if (filaEncontrada > 1) {
+    if (datos.usuarioConsular !== undefined) credSheet.getRange(filaEncontrada, cols.usuario + 1).setValue(datos.usuarioConsular);
+    if (datos.passwordConsular !== undefined) credSheet.getRange(filaEncontrada, cols.password + 1).setValue(datos.passwordConsular);
+    if (datos.urgencia !== undefined) credSheet.getRange(filaEncontrada, cols.urgencia + 1).setValue(datos.urgencia);
+    if (datos.fechaCita !== undefined) credSheet.getRange(filaEncontrada, cols.fechaCita + 1).setValue(datos.fechaCita);
+    if (datos.preferencia !== undefined) credSheet.getRange(filaEncontrada, cols.preferencia + 1).setValue(datos.preferencia);
+    if (datos.fechaCita) credSheet.getRange(filaEncontrada, cols.estadoCita + 1).setValue("CITA PROGRAMADA");
+    credSheet.getRange(filaEncontrada, cols.ultimaVerif + 1).setValue(ahora);
+  } else {
+    credSheet.appendRow([
+      id,
+      datos.nombreCompleto || '',
+      datos.consulado || 'CUBA LA HABANA',
+      datos.usuarioConsular || '',
+      datos.passwordConsular || '',
+      estadoAsignado,
+      datos.urgencia || '2. MEDIA / NORMAL',
+      datos.fechaCita || '',
+      datos.preferencia || 'CUALQUIER FECHA',
+      ahora
+    ]);
+  }
+
+  // Sincronización en la hoja principal si se asignó fecha de cita
+  if (datos.fechaCita) {
+    const mainSheet = ss.getSheetByName(SHEET_NAME);
+    if (mainSheet) {
+      const dataMain = mainSheet.getDataRange().getValues();
+      for (let i = 1; i < dataMain.length; i++) {
+        let idMain = String(dataMain[i][8] || '').trim();
+        if (!idMain || idMain.startsWith('=')) idMain = 'I' + i;
+        if (idMain === id) {
+          mainSheet.getRange(i + 1, 7).setValue(`CITA PROGRAMADA ${datos.fechaCita}`);
+          break;
+        }
+      }
+    }
+  }
+
+  registrarLog(id, datos.nombreCompleto || '', '', "Edición Citas/Credenciales", `Usuario: ${datos.usuarioConsular || 'N/A'}, Urgencia: ${datos.urgencia || 'NORMAL'}, Cita: ${datos.fechaCita || 'Sin cita'}`);
+  return { ok: true, mensaje: "Credenciales de Citas actualizadas exitosamente en Google Sheets" };
+}
+
+function extraerEmailReal(textoPlano, richTextValue) {
+  let emailsSet = new Set();
+
+  if (richTextValue) {
+    const runs = richTextValue.getRuns();
+    for (let i = 0; i < runs.length; i++) {
+      const enlace = runs[i].getLinkUrl();
+      if (enlace && enlace.toLowerCase().startsWith("mailto:")) {
+        emailsSet.add(enlace.substring(7).trim().toLowerCase());
+      }
+    }
+  }
+
+  let crudo = String(textoPlano).replace(/;/g, ",");
+  let partes = crudo.split(",");
+
+  for (let i = 0; i < partes.length; i++) {
+    let parteLimpia = partes[i].trim().toLowerCase();
+    if (parteLimpia.includes("@")) {
+      emailsSet.add(parteLimpia);
+    }
+  }
+  return Array.from(emailsSet).join(",");
+}
+
+function registrarLog(id, nombre, email, accion, detalle) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheetLogs = ss.getSheetByName(SHEET_LOGS);
+  
+  if (!sheetLogs) {
+    sheetLogs = ss.insertSheet(SHEET_LOGS);
+    sheetLogs.appendRow(["FECHA Y HORA", "IDENTIFICADOR", "CLIENTE", "EMAIL", "ACCIÓN", "DETALLE"]);
+    sheetLogs.getRange("A1:F1").setFontWeight("bold").setBackground("#e0e0e0");
+    sheetLogs.setFrozenRows(1);
+  }
+  sheetLogs.appendRow([new Date(), id, nombre, email, accion, detalle]);
+}
+
+function generarToken(id, email) {
+  const raw = id + email + PALABRA_SECRETA;
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, raw);
+  return digest.map(byte => (byte < 0 ? byte + 256 : byte).toString(16).padStart(2, '0')).join('');
+}
+
+function renderHtmlResponse(titulo, mensaje, exito) {
+  const color = exito ? "#10B981" : "#EF4444";
+  const icon = exito ? "✓" : "⚠";
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${titulo}</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0B0F19; color: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+          .card { background: #111827; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; max-width: 480px; width: 100%; padding: 40px 30px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+          .icon { width: 64px; height: 64px; border-radius: 50%; background: ${color}20; color: ${color}; font-size: 32px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto; border: 2px solid ${color}; }
+          h1 { font-size: 24px; margin-bottom: 12px; }
+          p { color: #9CA3AF; font-size: 15px; line-height: 1.5; margin-bottom: 24px; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="icon">${icon}</div>
+          <h1>${titulo}</h1>
+          <p>${mensaje}</p>
+        </div>
+      </body>
+    </html>
+  `;
+  return HtmlService.createHtmlOutput(html).setTitle(titulo).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// ==========================================
+// FUNCIÓN GLOBAL AUXILIAR: PARSEADOR DE FECHAS EN TEXTO
+// ==========================================
+/**
+ * Extrae y retorna un objeto Date a partir de cadenas de texto con fechas
+ * Soporta formatos: DD/MM/AAAA, DD-MM-AAAA, AAAA-MM-DD y prefijos (CITA 21-07-2026, CITA PROGRAMADA 16/11/2026 09:30)
+ */
+function extraerFechaDeDetalle(texto) {
+  if (!texto) return null;
+  if (texto instanceof Date) return texto;
+
+  const str = String(texto).trim();
+  if (!str) return null;
+
+  // 1. Patrón DD/MM/AAAA o DD-MM-AAAA
+  const matchDma = str.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (matchDma) {
+    const dia = parseInt(matchDma[1], 10);
+    const mes = parseInt(matchDma[2], 10) - 1;
+    const anio = parseInt(matchDma[3], 10);
+    const d = new Date(anio, mes, dia);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // 2. Patrón AAAA-MM-DD o AAAA/MM/DD
+  const matchIso = str.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (matchIso) {
+    const anio = parseInt(matchIso[1], 10);
+    const mes = parseInt(matchIso[2], 10) - 1;
+    const dia = parseInt(matchIso[3], 10);
+    const d = new Date(anio, mes, dia);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  return null;
+}

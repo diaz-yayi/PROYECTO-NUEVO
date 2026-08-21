@@ -1,0 +1,53 @@
+// ==========================================
+// MÓDULO 08: BACKEND PARA INTERFAZ GRÁFICA
+// ==========================================
+
+function obtenerConfiguracionActual() {
+  return {
+    MODO_PRUEBA: getConfig("MODO_PRUEBA"),
+    EMAIL_PRUEBA: getConfig("EMAIL_PRUEBA"),
+    DIAS_CARENCIA_RESOLUCION: getConfig("DIAS_CARENCIA_RESOLUCION"),
+    DIAS_CICLO_SEGUIMIENTO: getConfig("DIAS_CICLO_SEGUIMIENTO"),
+    DIAS_CICLO_TRAMITES: getConfig("DIAS_CICLO_TRAMITES"),
+    COLOR_ORO: getConfig("COLOR_ORO"),
+    COLOR_TEXTO: getConfig("COLOR_TEXTO"),
+    COLOR_FONDO: getConfig("COLOR_FONDO"),
+    URL_LOGO_PUBLICO: getConfig("URL_LOGO_PUBLICO")
+  };
+}
+
+function guardarConfiguracion(datos) {
+  const propiedades = PropertiesService.getDocumentProperties();
+  for (const key in datos) {
+    propiedades.setProperty(key, datos[key].toString());
+  }
+  try {
+    onOpen();
+  } catch (e) {}
+  return true;
+}
+
+function obtenerDatosTermometro() {
+  const props = PropertiesService.getDocumentProperties();
+  const urlPublica = getConfig("URL_LOGO_PUBLICO");
+  
+  // ESTRATEGIA BIFURCADA: Prioridad Base64 para Modales (Evita el bloqueo de Google)
+  let logoSeguro = urlPublica;
+  
+  if (typeof IMG_BASE64_NOTIFICACION !== 'undefined' && IMG_BASE64_NOTIFICACION !== '') {
+    logoSeguro = IMG_BASE64_NOTIFICACION;
+    // Si la cadena no trae el prefijo necesario para HTML, se lo agregamos
+    if (!logoSeguro.startsWith('http') && !logoSeguro.startsWith('data:')) {
+      logoSeguro = 'data:image/png;base64,' + logoSeguro;
+    }
+  }
+
+  return {
+    habana: props.getProperty('TERMOMETRO_HABANA') || "Aún no hay datos registrados",
+    miami: props.getProperty('TERMOMETRO_MIAMI') || "Aún no hay datos registrados",
+    oro: getConfig("COLOR_ORO"),
+    fondo: getConfig("COLOR_FONDO"),
+    texto: getConfig("COLOR_TEXTO"),
+    logo: logoSeguro
+  };
+}

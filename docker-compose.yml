@@ -1,0 +1,90 @@
+# =============================================================================
+# DOCKER COMPOSE: ENTORNO LOCAL PORTAL DE ACCESO — CENTRO DE MANDO (EM)
+# Puertos asignados en rango > 6000 para evitar colisiones con otros proyectos:
+#   - Servidor Web (PHP 8.2 + Apache): http://localhost:6080
+#   - phpMyAdmin (Gestor Visual de BD): http://localhost:6880
+#   - Base de Datos MySQL (Interna / Externa): localhost:6306
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # 1. SERVICIO WEB (Apache + PHP 8.2)
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: em_lmd_web
+    restart: unless-stopped
+    ports:
+      - "6080:80"
+    volumes:
+      - ./portal_web_lmd:/var/www/html
+    environment:
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_NAME=lmd_db
+      - DB_USER=lmd_user
+      - DB_PASS=EM_SecurePass_2026!
+      # Clave exclusiva de desarrollo local — distinta de la de producción.
+      # Al no coincidir con la real, un JWT firmado en local nunca sería válido en producción.
+      - JWT_SECRET_KEY=90098d72ba62e914bc5e0b2db1d91f1c6627fb042d9750580df9b3bea12e1ccd
+      - JWT_EXPIRATION_SECONDS=172800
+      # GAS_WEBAPP_URL y GAS_SECRET_TOKEN NO se definen aquí a propósito:
+      # solo existe un Apps Script real (el de producción), así que estos
+      # valores se toman de portal_web_lmd/config.secrets.php (fuera de git)
+      # en vez de duplicarse en este archivo versionado.
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - em_lmd_network
+
+  # 2. SERVICIO BASE DE DATOS (MySQL 8.0)
+  db:
+    image: mysql:8.0
+    container_name: em_lmd_mysql
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+    ports:
+      - "6306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: EM_RootPass_2026!
+      MYSQL_DATABASE: lmd_db
+      MYSQL_USER: lmd_user
+      MYSQL_PASSWORD: EM_SecurePass_2026!
+    volumes:
+      - em_lmd_db_data:/var/lib/mysql
+      - ./portal_web_lmd/db/schema.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pEM_RootPass_2026!"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - em_lmd_network
+
+  # 3. SERVICIO PHPMYADMIN (Panel de Control de Base de Datos)
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: em_lmd_phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "6880:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: EM_RootPass_2026!
+    depends_on:
+      - db
+    networks:
+      - em_lmd_network
+
+volumes:
+  em_lmd_db_data:
+    driver: local
+
+networks:
+  em_lmd_network:
+    driver: bridge

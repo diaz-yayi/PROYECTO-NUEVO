@@ -1,0 +1,259 @@
+// ==========================================
+// MÓDULO 10: VERIFICADOR REGISTRO CIVIL CENTRAL (RCC ESPAÑA v2.1)
+// ==========================================
+
+const SHEET_RCC = "VERIFICACION_RCC";
+
+// Cabeceras oficiales con diseño corporativo #000000 / #D4AF37
+const HEADERS_RCC = [
+  'Nombre', 'Apellidos', 'Nº Expediente', 'Año', 'Identificador',
+  'Estado RCC', 'Nombre en Sistema', 'Detalle Oficial',
+  'Resultado', 'Última Verificación'
+];
+
+/**
+ * Obtiene la lista de expedientes candidatos para consultar en el Registro Civil Central de España.
+ * Filtra con doble candado:
+ *   1. Consulado = "ESPAÑA" (o que contenga "ESPAÑA")
+ *   2. Estado = "PENDIENTE RESOLUCION" (exclusivamente)
+ */
+function obtenerExpedientesPendientesRCC() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sourceSheet = ss.getSheetByName(SHEET_NAME);
+  if (!sourceSheet) return { ok: false, mensaje: `No se encontró la hoja "${SHEET_NAME}".` };
+
+  const data = sourceSheet.getDataRange().getValues();
+  const candidatos = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const fila          = data[i];
+    const nombre        = String(fila[SRC_COL_NOMBRE]        || '').trim();
+    const apellidos     = String(fila[SRC_COL_APELLIDOS]     || '').trim();
+    const consulado     = String(fila[SRC_COL_CONSULADO]     || '').trim().toUpperCase();
+    const estado        = String(fila[SRC_COL_ESTADO]        || '').trim().toUpperCase();
+    const rawExpediente = String(fila[SRC_COL_EXPEDIENTE]    || '').trim();
+    
+    // Identificador evaluado (si la fórmula no devolvió string, calcula I + fila)
+    let identificador   = String(fila[SRC_COL_IDENTIFICADOR] || '').trim();
+    if (!identificador || identificador.startsWith('=')) {
+      identificador = 'I' + i;
+    }
+
+    // 1. Filtrar solo expedientes presentados en ESPAÑA
+    if (!consulado.includes("ESPAÑA")) continue;
+
+    // 2. Candado estricto de estado: ÚNICAMENTE PENDIENTE RESOLUCION
+    if (estado !== "PENDIENTE RESOLUCION") continue;
+
+    // 3. Extraer número y año con parser flexible
+    const parseado = _rcc_extraerNumeroYAnio(rawExpediente);
+    if (!parseado) continue;
+
+    candidatos.push({
+      rowIndex: i + 1,
+      identificador: identificador,
+      nombre: nombre,
+      apellidos: apellidos,
+      nombreCompleto: `${nombre} ${apellidos}`.trim(),
+      rawExpediente: rawExpediente,
+      numeroExpediente: parseado.numero,
+      anioExpediente: parseado.anio,
+      tipoExpediente: "P0E" // Tipo oficial: Expediente Registro Civil
+    });
+  }
+
+  return {
+    ok: true,
+    total: candidatos.length,
+    candidatos: candidatos,
+    modoPrueba: getConfig("MODO_PRUEBA")
+  };
+}
+
+/**
+ * Registra o actualiza el resultado de una consulta del RCC en la hoja VERIFICACION_RCC.
+ */
+function registrarResultadoRCC(item, resRCC) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const rccSheet = _rcc_obtenerOCrearHoja(ss);
+  const idToRow = _rcc_construirMapaIdentificadores(rccSheet);
+
+  const ahora = Utilities.formatDate(
+    new Date(),
+    Session.getScriptTimeZone(),
+    'dd/MM/yyyy HH:mm:ss'
+  );
+
+  const rowData = [
+    item.nombre || '',
+    item.apellidos || '',
+    item.numeroExpediente || '',
+    item.anioExpediente || '',
+    item.identificador || '',
+    resRCC.estado || '',
+    resRCC.nombreSistema || '',
+    resRCC.detalle || '',
+    resRCC.resultado || 'OK',
+    ahora
+  ];
+
+  const filaDestino = idToRow[item.identificador];
+  if (filaDestino) {
+    rccSheet.getRange(filaDestino, 1, 1, rowData.length).setValues([rowData]);
+  } else {
+    const nuevaFila = rccSheet.getLastRow() + 1;
+    rccSheet.getRange(nuevaFila, 1, 1, rowData.length).setValues([rowData]);
+  }
+
+  // Actualizar automáticamente la hoja principal EXPEDIENTES LMD
+  _rcc_actualizarHojaPrincipal(ss, item, resRCC, ahora);
+
+  return { ok: true };
+}
+
+/**
+ * Actualiza la hoja principal EXPEDIENTES LMD cuando el RCC determina que el expediente concluyó.
+ * Establece el estado a 'RESUELTO', inyecta en 'Detalle' el texto literal del Ministerio
+ * y limpia las columnas K y L para cerrar el ciclo de notificaciones.
+ */
+function _rcc_actualizarHojaPrincipal(ss, item, resRCC, ahora) {
+  if (!item || !item.identificador || !resRCC || !resRCC.estado) return;
+
+  const sourceSheet = ss.getSheetByName(SHEET_NAME);
+  if (!sourceSheet || sourceSheet.getLastRow() < 2) return;
+
+  const estadoLower = String(resRCC.estado || '').toLowerCase();
+  const esConcluido = estadoLower.includes('concluido') || estadoLower.includes('concluíd') || estadoLower.includes('concedido') || estadoLower.includes('favorable') || estadoLower.includes('resuelto');
+  
+  if (!esConcluido) return;
+
+  const data = sourceSheet.getDataRange().getValues();
+  let targetRow = -1;
+  let estadoActual = '';
+
+  for (let i = 1; i < data.length; i++) {
+    let idFila = String(data[i][SRC_COL_IDENTIFICADOR] || '').trim();
+    if (!idFila || idFila.startsWith('=')) idFila = 'I' + i;
+
+    if (idFila.toUpperCase() === String(item.identificador).trim().toUpperCase()) {
+      targetRow = i + 1;
+      estadoActual = String(data[i][SRC_COL_ESTADO] || '').trim().toUpperCase();
+      break;
+    }
+  }
+
+  if (targetRow < 2) return;
+
+  // Si ya estaba en un estado terminal resuelto, no sobreescribir innecesariamente
+  if (estadoActual === 'RESUELTO' || estadoActual === 'RESUELTO FAVORABLE' || estadoActual === 'RESUELTO DENEGADO') {
+    return;
+  }
+
+  const modoPrueba = (typeof getConfig === 'function') ? getConfig("MODO_PRUEBA") : false;
+
+  const nuevoEstado = 'RESUELTO';
+  const nuevoDetalle = String(resRCC.estado || 'El expediente está concluido').trim();
+  const nuevasObs = `Verificado RCC: ${ahora}`;
+
+  if (modoPrueba) {
+    console.log(`🟡 [MODO PRUEBA - SIMULACRO] Fila ${targetRow} (ID: ${item.identificador}): Transición de [${estadoActual}] a [${nuevoEstado}]. Detalle: "${nuevoDetalle}". EXPEDIENTES LMD NO fue modificada.`);
+    return;
+  }
+
+  // --- PRODUCCIÓN: Actualizar EXPEDIENTES LMD ---
+  // Columna F (Estado), Columna G (Detalle), Columna H (Observaciones)
+  sourceSheet.getRange(targetRow, SRC_COL_ESTADO + 1, 1, 3).setValues([[nuevoEstado, nuevoDetalle, nuevasObs]]);
+
+  // Limpiar notas poka-yoke
+  sourceSheet.getRange(targetRow, SRC_COL_DETALLE + 1).clearNote();
+
+  // Limpiar notificaciones K y L para que el Motor de Envíos dispare la comunicación
+  sourceSheet.getRange(targetRow, SRC_COL_NOTIFICADO + 1).clearContent();
+  sourceSheet.getRange(targetRow, SRC_COL_FECHA_NOTIF + 1).clearContent();
+
+  // Auditoría en LOGS_SISTEMA
+  try {
+    if (typeof registrarLog === 'function') {
+      registrarLog(
+        item.identificador,
+        'Verificador RCC España',
+        'Playwright Ministerio',
+        'Cambio de Estado Automático',
+        `Transición: De [${estadoActual}] a [${nuevoEstado}]. Detalle: "${nuevoDetalle}". Obs: "${nuevasObs}"`
+      );
+    }
+  } catch (e) {
+    console.log(`[LOG AUDIT FAIL] ${item.identificador}: ${e.message}`);
+  }
+
+  console.log(`✅ [EXPEDIENTES LMD Fila ${targetRow}] ID: ${item.identificador} -> Actualizado a [${nuevoEstado}] con Detalle: "${nuevoDetalle}".`);
+}
+
+/**
+ * Parser flexible para separar número de expediente y año.
+ * Acepta formatos: "0055698/2024", "000111-2024", "55698 2024", "26406/2023", etc.
+ */
+function _rcc_extraerNumeroYAnio(expTexto) {
+  if (!expTexto) return null;
+  const s = String(expTexto).trim();
+
+  // Caso 1: Separado por barra, guion o espacio seguido de año de 4 dígitos (ej: 0055698/2024 o 111-2024)
+  const match = s.match(/^(\d+)[\/\-\s]+(\d{4})$/);
+  if (match) {
+    return {
+      numero: match[1],
+      anio: match[2]
+    };
+  }
+
+  // Caso 2: Año primero seguido de número (ej: 2024/0055698 o 2024-111)
+  const matchInvertido = s.match(/^(\d{4})[\/\-\s]+(\d+)$/);
+  if (matchInvertido) {
+    return {
+      numero: matchInvertido[2],
+      anio: matchInvertido[1]
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Crea o localiza la hoja VERIFICACION_RCC con estilo corporativo.
+ */
+function _rcc_obtenerOCrearHoja(ss) {
+  let sheet = ss.getSheetByName(SHEET_RCC);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_RCC);
+
+    const headerRange = sheet.getRange(1, 1, 1, HEADERS_RCC.length);
+    headerRange.setValues([HEADERS_RCC]);
+    headerRange.setBackground('#000000');
+    headerRange.setFontColor('#D4AF37');
+    headerRange.setFontWeight('bold');
+    headerRange.setFontSize(11);
+    headerRange.setHorizontalAlignment('center');
+
+    sheet.setFrozenRows(1);
+
+    const anchos = [140, 160, 130, 80, 110, 220, 180, 280, 110, 155];
+    anchos.forEach((w, idx) => sheet.setColumnWidth(idx + 1, w));
+
+    console.log(`✅ Hoja "${SHEET_RCC}" creada con cabeceras y diseño de marca.`);
+  }
+  return sheet;
+}
+
+function _rcc_construirMapaIdentificadores(sheet) {
+  const mapa = {};
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return mapa;
+
+  const idCol = sheet.getRange(2, 5, lastRow - 1, 1).getValues(); // Columna E: Identificador
+  idCol.forEach((row, idx) => {
+    const id = String(row[0] || '').trim();
+    if (id) mapa[id] = idx + 2;
+  });
+
+  return mapa;
+}

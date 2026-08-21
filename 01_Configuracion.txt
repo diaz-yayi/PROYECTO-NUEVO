@@ -1,0 +1,59 @@
+// ==========================================
+// MÓDULO 01: CONFIGURACIÓN Y AUTO-REPARACIÓN
+// ==========================================
+
+// --- VALORES DE FÁBRICA (FALLBACK) ---
+// Si la bóveda se borra al copiar el archivo, el sistema usará estos valores.
+const DEFAULTS = {
+  MODO_PRUEBA: true,
+  EMAIL_PRUEBA: "yanglienlc@gmail.com",
+  DIAS_CARENCIA_RESOLUCION: 60,
+  DIAS_CICLO_SEGUIMIENTO: 30,
+  DIAS_CICLO_TRAMITES: 30,
+  COLOR_ORO: "#D4AF37",
+  COLOR_TEXTO: "#333333",
+  COLOR_FONDO: "#F7F7F7",
+  URL_LOGO_PUBLICO: "https://estelamarina.com/wp-content/uploads/2024/07/EM-Blanco1080x1080.png"
+};
+
+// --- CONSTANTES INMUTABLES DE SEGURIDAD ---
+// Estas jamás cambian desde la interfaz gráfica.
+const SHEET_NAME = "EXPEDIENTES LMD";
+const SHEET_LOGS = "LOGS_SISTEMA";
+const PALABRA_SECRETA = PropertiesService.getScriptProperties().getProperty('PALABRA_SECRETA'); 
+const WEB_APP_URL = PropertiesService.getScriptProperties().getProperty('WEB_APP_URL'); 
+const REMITENTE = "noti-noreply@estelamarina.com";
+const RESPONDER_A = "administracion@estelamarina.com";
+const SENDER_NAME = "Notificaciones EM";
+
+/**
+ * Función inteligente: Lee el PropertiesService.
+ * Si está vacío (por migración), usa el valor de fábrica y lo inyecta en la bóveda.
+ */
+function getConfig(key) {
+  const propiedades = PropertiesService.getDocumentProperties();
+  let valor = propiedades.getProperty(key);
+
+  if (valor === null || valor === "") {
+    valor = DEFAULTS[key]; // Paracaídas activado
+    
+    if (valor !== undefined) {
+      propiedades.setProperty(key, valor.toString()); // Auto-reparación
+    }
+  }
+
+  // Parseo de tipos para que el código entienda booleanos y números
+  if (valor === "true") return true;
+  if (valor === "false") return false;
+  if (!isNaN(valor) && valor !== "" && key.includes("DIAS")) return parseInt(valor, 10);
+
+  return valor;
+}
+
+/**
+ * Guarda o actualiza un valor específico en la bóveda de propiedades del documento.
+ */
+function setConfig(key, valor) {
+  const propiedades = PropertiesService.getDocumentProperties();
+  propiedades.setProperty(key, valor.toString());
+}

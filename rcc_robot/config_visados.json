@@ -1,0 +1,15 @@
+{
+  "TELEGRAM_BOT_TOKEN": "8786592625:AAGMvMDtD7TTk-qmgn0CFttPzOjLEaMq7YQ",
+  "TELEGRAM_CHAT_ID": "770388568",
+  "PAUSA_MINIMA_SEGUNDOS": 45,
+  "PAUSA_MAXIMA_SEGUNDOS": 80,
+  "SONIDO_ALARMA": true,
+  "TRAMITES_VISADOS": [
+    {
+      "consulado": "LA HABANA",
+      "tramite": "Visado Familiar de Español / Ciudadano UE (V5)",
+      "url": "https://www.citaconsular.es/es/hosteds/widgetdefault/2686d3b68dc9e0db0ba3c6a20437e9cc7",
+      "activo": true
+    }
+  ]
+}

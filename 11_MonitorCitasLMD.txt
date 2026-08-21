@@ -1,0 +1,388 @@
+// ==========================================
+// MÓDULO 11: MONITOR Y GESTOR DE CITAS LMD (v3.2 DINÁMICO & PRIORIDAD)
+// ==========================================
+
+const SHEET_CREDENCIALES = "CREDENCIALES_LMD";
+
+// Cabeceras oficiales de la pestaña de credenciales (#000000 / #D4AF37)
+const HEADERS_CREDENCIALES = [
+  'Identificador', 'Nombre Completo', 'Consulado',
+  'Usuario Consular', 'Contraseña Consular',
+  'Estado Cita', 'Nivel de Urgencia', 'Fecha Cita Asignada', 'Preferencia / Modo', 'Última Verificación'
+];
+
+const OPCIONES_URGENCIA = ['1. ALTA / URGENTE', '2. MEDIA / NORMAL', '3. BAJA / FLEXIBLE'];
+
+/**
+ * Mapea dinámicamente las posiciones de las columnas leyendo las cabeceras reales de la fila 1.
+ */
+function _citas_obtenerIndicesCredenciales(credSheet) {
+  const lastCol = Math.max(credSheet.getLastColumn(), HEADERS_CREDENCIALES.length);
+  const headers = credSheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  
+  const mapa = {
+    id: 0,
+    nombre: 1,
+    consulado: 2,
+    usuario: 3,
+    password: 4,
+    estadoCita: 5,
+    urgencia: 6,
+    fechaCita: 7,
+    preferencia: 8,
+    ultimaVerif: 9
+  };
+
+  headers.forEach((h, idx) => {
+    const txt = String(h || '').toUpperCase().trim();
+    if (txt.includes('IDENTIFICADOR')) mapa.id = idx;
+    else if (txt.includes('NOMBRE')) mapa.nombre = idx;
+    else if (txt.includes('CONSULADO')) mapa.consulado = idx;
+    else if (txt.includes('USUARIO')) mapa.usuario = idx;
+    else if (txt.includes('CONTRASEÑA') || txt.includes('PASSWORD') || txt.includes('CLAVE')) mapa.password = idx;
+    else if (txt.includes('ESTADO')) mapa.estadoCita = idx;
+    else if (txt.includes('URGENCIA') || txt.includes('PRIORIDAD')) mapa.urgencia = idx;
+    else if (txt.includes('FECHA CITA') || txt.includes('ASIGNADA')) mapa.fechaCita = idx;
+    else if (txt.includes('PREFERENCIA') || txt.includes('MODO')) mapa.preferencia = idx;
+    else if (txt.includes('VERIFICACIÓN') || txt.includes('VERIF')) mapa.ultimaVerif = idx;
+  });
+
+  return mapa;
+}
+
+/**
+ * Sincroniza y puebla automáticamente la pestaña CREDENCIALES_LMD
+ * a partir de los expedientes en "PENDIENTE DE CREDENCIALES" y "PENDIENTE DE CITA".
+ */
+function sincronizarColaCitasLMD() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const credSheet = _citas_obtenerOCrearHojaCredenciales(ss);
+  const mainSheet = ss.getSheetByName(SHEET_NAME);
+
+  if (!mainSheet) {
+    return { ok: false, error: `No se encontró la hoja "${SHEET_NAME}".` };
+  }
+
+  const cols = _citas_obtenerIndicesCredenciales(credSheet);
+  const dataMain = mainSheet.getDataRange().getValues();
+  const lastRowCred = credSheet.getLastRow();
+  
+  // Mapa de registros ya existentes en CREDENCIALES_LMD por Identificador
+  const mapaCredExistentes = {};
+  if (lastRowCred >= 2) {
+    const dataCred = credSheet.getRange(2, 1, lastRowCred - 1, credSheet.getLastColumn()).getValues();
+    for (let c = 0; c < dataCred.length; c++) {
+      const id = String(dataCred[c][cols.id] || '').trim();
+      if (id) {
+        mapaCredExistentes[id] = {
+          rowIndex: c + 2,
+          usuario: String(dataCred[c][cols.usuario] || '').trim(),
+          password: String(dataCred[c][cols.password] || '').trim(),
+          estadoCita: String(dataCred[c][cols.estadoCita] || '').trim(),
+          urgencia: String(dataCred[c][cols.urgencia] || '').trim()
+        };
+      }
+    }
+  }
+
+  const ahora = Utilities.formatDate(
+    new Date(),
+    Session.getScriptTimeZone(),
+    'dd/MM/yyyy HH:mm:ss'
+  );
+
+  let agregados = 0;
+  let actualizados = 0;
+  const nuevasFilas = [];
+  const clientesDetalle = [];
+
+  for (let i = 1; i < dataMain.length; i++) {
+    const fila = dataMain[i];
+    let id = String(fila[SRC_COL_IDENTIFICADOR] || '').trim();
+    if (!id || id.startsWith('=')) id = 'I' + i;
+
+    const nombre    = String(fila[SRC_COL_NOMBRE] || '').trim();
+    const apellidos = String(fila[SRC_COL_APELLIDOS] || '').trim();
+    const consulado = String(fila[SRC_COL_CONSULADO] || '').trim().toUpperCase();
+    const estado    = String(fila[SRC_COL_ESTADO] || '').trim().toUpperCase();
+    const detalle   = String(fila[SRC_COL_DETALLE] || '').trim().toUpperCase();
+
+    // Solo candidatos en gestión de citas o credenciales
+    if (estado !== "PENDIENTE DE CREDENCIALES" && estado !== "PENDIENTE DE CITA") {
+      continue;
+    }
+
+    const nombreCompleto = `${nombre} ${apellidos}`.trim();
+    
+    // Determinar estado coherente para la tabla de credenciales
+    let estadoParaCred = "PENDIENTE CREDENCIALES";
+    if (estado === "PENDIENTE DE CITA") {
+      estadoParaCred = detalle.includes("CITA PROGRAMADA") ? "CITA PROGRAMADA" : "CITA PENDIENTE";
+    }
+
+    // Caso A: El cliente ya existe en CREDENCIALES_LMD -> Actualizar estado si cambió
+    if (mapaCredExistentes[id]) {
+      const datosExistente = mapaCredExistentes[id];
+      if (datosExistente.estadoCita !== "CITA PROGRAMADA" && datosExistente.estadoCita !== estadoParaCred) {
+        credSheet.getRange(datosExistente.rowIndex, cols.estadoCita + 1).setValue(estadoParaCred);
+        credSheet.getRange(datosExistente.rowIndex, cols.ultimaVerif + 1).setValue(ahora);
+        actualizados++;
+        clientesDetalle.push({ id: id, nombre: nombreCompleto, consulado: consulado, estado: estadoParaCred, accion: 'ACTUALIZADO' });
+      }
+    } 
+    // Caso B: Cliente nuevo -> Insertar nueva fila
+    else {
+      nuevasFilas.push([
+        id,                  // Col A (1): Identificador
+        nombreCompleto,      // Col B (2): Nombre Completo
+        consulado,           // Col C (3): Consulado
+        '',                  // Col D (4): Usuario Consular (para rellenar)
+        '',                  // Col E (5): Contraseña Consular (para rellenar)
+        estadoParaCred,      // Col F (6): Estado Cita
+        '2. MEDIA / NORMAL', // Col G (7): Nivel de Urgencia (por defecto)
+        '',                  // Col H (8): Fecha Cita Asignada
+        'CUALQUIER FECHA',   // Col I (9): Preferencia / Modo
+        ahora                // Col J (10): Última Verificación
+      ]);
+      agregados++;
+      clientesDetalle.push({ id: id, nombre: nombreCompleto, consulado: consulado, estado: estadoParaCred, accion: 'AGREGADO' });
+    }
+  }
+
+  // Insertar nuevas filas en lote y aplicar desplegable de urgencia
+  if (nuevasFilas.length > 0) {
+    const filaInicio = credSheet.getLastRow() + 1;
+    credSheet.getRange(filaInicio, 1, nuevasFilas.length, HEADERS_CREDENCIALES.length).setValues(nuevasFilas);
+    
+    // Aplicar regla de validación desplegable en columna G (Urgencia)
+    const reglaUrgencia = SpreadsheetApp.newDataValidation()
+      .requireValueInList(OPCIONES_URGENCIA, true)
+      .setAllowInvalid(false)
+      .build();
+    credSheet.getRange(filaInicio, cols.urgencia + 1, nuevasFilas.length, 1).setDataValidation(reglaUrgencia);
+  }
+
+  try {
+    ss.toast(`🔄 Sincronización LMD: ${agregados} agregados, ${actualizados} actualizados.`, 'Cola de Citas', 5);
+  } catch (e) {}
+
+  return {
+    ok: true,
+    agregados: agregados,
+    actualizados: actualizados,
+    totalCola: (lastRowCred - 1) + agregados,
+    evaluados: dataMain.length > 1 ? dataMain.length - 1 : 0,
+    clientes: clientesDetalle
+  };
+}
+
+/**
+ * Obtiene la lista de candidatos válidos ordenados inteligentemente por NIVEL DE URGENCIA:
+ *   1. ALTA / URGENTE (Prioridad máxima)
+ *   2. MEDIA / NORMAL
+ *   3. BAJA / FLEXIBLE
+ */
+function obtenerCandidatosParaRadarCitas(consuladoFiltro) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const credSheet = _citas_obtenerOCrearHojaCredenciales(ss);
+  const mainSheet = ss.getSheetByName(SHEET_NAME);
+
+  if (!mainSheet) {
+    return { ok: false, error: `No se encontró la hoja "${SHEET_NAME}".` };
+  }
+
+  const cols = _citas_obtenerIndicesCredenciales(credSheet);
+  const dataMain = mainSheet.getDataRange().getValues();
+  const lastRowCred = credSheet.getLastRow();
+  const lastColCred = Math.max(credSheet.getLastColumn(), HEADERS_CREDENCIALES.length);
+  
+  if (lastRowCred < 2) {
+    return { ok: true, candidatos: [], total: 0 };
+  }
+
+  const dataCred = credSheet.getRange(2, 1, lastRowCred - 1, lastColCred).getValues();
+
+  // 1. Mapa de candidatos en la hoja principal EXPEDIENTES LMD
+  const mapaMain = {};
+  for (let i = 1; i < dataMain.length; i++) {
+    const fila = dataMain[i];
+    let id = String(fila[SRC_COL_IDENTIFICADOR] || '').trim();
+    if (!id || id.startsWith('=')) id = 'I' + i;
+
+    mapaMain[id] = {
+      rowIndex: i + 1,
+      nombre: String(fila[SRC_COL_NOMBRE] || '').trim(),
+      apellidos: String(fila[SRC_COL_APELLIDOS] || '').trim(),
+      consulado: String(fila[SRC_COL_CONSULADO] || '').trim().toUpperCase(),
+      estado: String(fila[SRC_COL_ESTADO] || '').trim().toUpperCase(),
+      detalle: String(fila[SRC_COL_DETALLE] || '').trim().toUpperCase()
+    };
+  }
+
+  // 2. Filtrar candidatos que cumplen el Triple Candado
+  const candidatosValidos = [];
+  const filtroUpper = consuladoFiltro ? String(consuladoFiltro).toUpperCase().trim() : '';
+
+  for (let c = 0; c < dataCred.length; c++) {
+    const filaCred = dataCred[c];
+    const idCred      = String(filaCred[cols.id] || '').trim();
+    const nombreCred  = String(filaCred[cols.nombre] || '').trim();
+    const consCred    = String(filaCred[cols.consulado] || '').trim().toUpperCase();
+    const usuario     = String(filaCred[cols.usuario] || '').trim();
+    const password    = String(filaCred[cols.password] || '').trim();
+    const estadoCita  = String(filaCred[cols.estadoCita] || '').trim().toUpperCase();
+    const urgencia    = String(filaCred[cols.urgencia] || '').trim() || '2. MEDIA / NORMAL';
+    const preferencia = String(filaCred[cols.preferencia] || 'CUALQUIER FECHA').trim();
+
+    // Candado 1: Estado en credenciales debe ser CITA PENDIENTE
+    if (estadoCita !== "CITA PENDIENTE") continue;
+
+    // Candado 2: Debe poseer usuario y contraseña registrados
+    if (!usuario || !password) continue;
+
+    // Candado 3: Filtro por consulado
+    if (filtroUpper && !consCred.includes(filtroUpper)) continue;
+
+    // Candado 4: Verificación cruzada con la hoja principal EXPEDIENTES LMD
+    const datosMain = mapaMain[idCred];
+    if (!datosMain) continue;
+
+    // Debe seguir en PENDIENTE DE CITA en la hoja principal
+    if (datosMain.estado !== "PENDIENTE DE CITA") continue;
+
+    // El Detalle NO debe contener CITA PROGRAMADA
+    if (datosMain.detalle.includes("CITA PROGRAMADA")) continue;
+
+    // Asignar peso numérico para la ordenación de prioridad
+    let pesoUrgencia = 2; // NORMAL por defecto
+    const urgUpper = urgencia.toUpperCase();
+    if (urgUpper.includes("1.") || urgUpper.includes("ALTA") || urgUpper.includes("URGENTE")) {
+      pesoUrgencia = 1;
+    } else if (urgUpper.includes("3.") || urgUpper.includes("BAJA")) {
+      pesoUrgencia = 3;
+    }
+
+    candidatosValidos.push({
+      rowIndexCred: c + 2,
+      rowIndexMain: datosMain.rowIndex,
+      identificador: idCred,
+      nombreCompleto: nombreCred || `${datosMain.nombre} ${datosMain.apellidos}`.trim(),
+      consulado: consCred || datosMain.consulado,
+      usuarioConsular: usuario,
+      passwordConsular: password,
+      urgencia: urgencia,
+      pesoUrgencia: pesoUrgencia,
+      preferencia: preferencia
+    });
+  }
+
+  // Ordenar la cola: Primero los de ALTA/URGENTE (peso 1), luego NORMAL (peso 2), luego BAJA (peso 3)
+  candidatosValidos.sort((a, b) => {
+    if (a.pesoUrgencia !== b.pesoUrgencia) {
+      return a.pesoUrgencia - b.pesoUrgencia;
+    }
+    return a.rowIndexCred - b.rowIndexCred; // FIFO dentro de la misma prioridad
+  });
+
+  return {
+    ok: true,
+    candidatos: candidatosValidos,
+    total: candidatosValidos.length
+  };
+}
+
+/**
+ * Registra una cita capturada o asignada exitosamente en ambas hojas (Actualización Bidireccional).
+ */
+function registrarCitaCapturadaLMD(datosCita) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const credSheet = _citas_obtenerOCrearHojaCredenciales(ss);
+  const mainSheet = ss.getSheetByName(SHEET_NAME);
+  const cols = _citas_obtenerIndicesCredenciales(credSheet);
+
+  const identificador = String(datosCita.identificador || '').trim();
+  const fechaCitaTexto = String(datosCita.fechaCita || '').trim();
+  const detalleExtra   = String(datosCita.detalle || '').trim();
+
+  const ahora = Utilities.formatDate(
+    new Date(),
+    Session.getScriptTimeZone(),
+    'dd/MM/yyyy HH:mm:ss'
+  );
+
+  // 1. Actualizar en CREDENCIALES_LMD
+  const lastRowCred = credSheet.getLastRow();
+  let filaCredEncontrada = -1;
+
+  if (lastRowCred >= 2) {
+    const idsCred = credSheet.getRange(2, cols.id + 1, lastRowCred - 1, 1).getValues();
+    for (let r = 0; r < idsCred.length; r++) {
+      if (String(idsCred[r][0] || '').trim() === identificador) {
+        filaCredEncontrada = r + 2;
+        break;
+      }
+    }
+  }
+
+  if (filaCredEncontrada > 1) {
+    credSheet.getRange(filaCredEncontrada, cols.estadoCita + 1).setValue("CITA PROGRAMADA");
+    credSheet.getRange(filaCredEncontrada, cols.fechaCita + 1).setValue(fechaCitaTexto);
+    credSheet.getRange(filaCredEncontrada, cols.ultimaVerif + 1).setValue(ahora);
+  }
+
+  // 2. Actualizar en EXPEDIENTES LMD (Hoja Principal)
+  if (mainSheet) {
+    const dataMain = mainSheet.getDataRange().getValues();
+    for (let i = 1; i < dataMain.length; i++) {
+      let idMain = String(dataMain[i][SRC_COL_IDENTIFICADOR] || '').trim();
+      if (!idMain || idMain.startsWith('=')) idMain = 'I' + i;
+
+      if (idMain === identificador) {
+        const textoDetalle = `CITA PROGRAMADA ${fechaCitaTexto}` + (detalleExtra ? ` (${detalleExtra})` : '');
+        mainSheet.getRange(i + 1, SRC_COL_DETALLE + 1).setValue(textoDetalle);
+        break;
+      }
+    }
+  }
+
+  // 3. Registrar Log en LOGS_SISTEMA
+  try {
+    const logSheet = ss.getSheetByName(SHEET_LOGS);
+    if (logSheet) {
+      logSheet.appendRow([
+        ahora,
+        identificador,
+        datosCita.nombreCompleto || '',
+        'LMD CITA',
+        'Cita Asignada',
+        `Cita capturada para el ${fechaCitaTexto} en ${datosCita.consulado || ''}`
+      ]);
+    }
+  } catch (e) {}
+
+  return { ok: true, mensaje: "Cita registrada y sincronizada en ambas hojas con éxito." };
+}
+
+/**
+ * Obtiene o crea la hoja CREDENCIALES_LMD con diseño corporativo #000000 / #D4AF37.
+ */
+function _citas_obtenerOCrearHojaCredenciales(ss) {
+  let sheet = ss.getSheetByName(SHEET_CREDENCIALES);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_CREDENCIALES);
+  }
+
+  const headerRange = sheet.getRange(1, 1, 1, HEADERS_CREDENCIALES.length);
+  headerRange.setValues([HEADERS_CREDENCIALES]);
+  headerRange.setBackground('#000000');
+  headerRange.setFontColor('#D4AF37');
+  headerRange.setFontWeight('bold');
+  headerRange.setFontSize(11);
+  headerRange.setHorizontalAlignment('center');
+  sheet.setFrozenRows(1);
+
+  const anchos = [110, 180, 140, 150, 150, 160, 170, 160, 150, 155];
+  anchos.forEach((w, idx) => sheet.setColumnWidth(idx + 1, w));
+
+  return sheet;
+}

@@ -1,0 +1,230 @@
+// ==========================================
+// MÓDULO 03: TRABAJADOR NOCTURNO (CON PAGINACIÓN Y LOGS)
+// ==========================================
+
+function trabajadorNocturno() {
+  const startTime = Date.now();
+  const MAX_EXECUTION_TIME = 270000; // 4.5 minutos de límite seguro
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) return null;
+
+  const data = sheet.getDataRange().getValues();
+  const hoy = new Date();
+  
+  // Limpiamos las horas para comparar fechas exactas
+  const hoyLimpio = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
+  // Memoria del sistema (Bóveda)
+  const props = PropertiesService.getDocumentProperties();
+  let startRow = parseInt(props.getProperty('LAST_ROW_NOCTURNO'), 10) || 1;
+  let actualizaciones = parseInt(props.getProperty('ACUMULADO_NOCTURNO'), 10) || 0;
+  let citasAlcanzadasCount = 0;
+  let notificacionesLiberadasCount = 0;
+
+  // Configuración dinámica
+  const modoPrueba = getConfig("MODO_PRUEBA");
+  const cicloTramites = getConfig("DIAS_CICLO_TRAMITES");
+  const cicloSeguimiento = getConfig("DIAS_CICLO_SEGUIMIENTO");
+  const carenciaResolucion = getConfig("DIAS_CARENCIA_RESOLUCION");
+
+  // Pre-carga del Mapa de Verificación Consular para consulta ultra-rápida (Triple Verificación)
+  const mapaVerificacion = _tn_construirMapaVerificacion(ss);
+
+  if (startRow === 1) {
+    console.log(`🕒 Iniciando Auditor Nocturno. Filas a evaluar: ${data.length - 1}. Modo Prueba: ${modoPrueba ? "ACTIVO" : "INACTIVO"}`);
+  } else {
+    console.log(`🔄 Reanudando Auditor Nocturno desde la fila ${startRow}...`);
+  }
+
+  let pausado = false;
+
+  for (let i = startRow; i < data.length; i++) {
+    
+    // --- ESCUDO DE TIEMPO (PARACAÍDAS) ---
+    if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+      console.log(`⚠️ ALERTA: Límite de 4.5 min alcanzado en la Fila ${i}. Guardando Checkpoint.`);
+      
+      props.setProperty('LAST_ROW_NOCTURNO', i.toString());
+      props.setProperty('ACUMULADO_NOCTURNO', actualizaciones.toString());
+
+      const oldTriggerId = props.getProperty('TEMP_TRIGGER_NOCTURNO');
+      if (oldTriggerId) {
+        ScriptApp.getProjectTriggers().forEach(t => {
+          if (t.getUniqueId() === oldTriggerId) ScriptApp.deleteTrigger(t);
+        });
+      }
+
+      const newTrigger = ScriptApp.newTrigger('trabajadorNocturno').timeBased().after(60 * 1000).create();
+      props.setProperty('TEMP_TRIGGER_NOCTURNO', newTrigger.getUniqueId());
+      
+      pausado = true;
+      break;
+    }
+    // ------------------------------------
+
+    const id          = String(data[i][8]).trim();
+    const consulado   = String(data[i][2]).trim().toUpperCase();
+    const estado      = String(data[i][5]).trim().toUpperCase();
+    const detalle     = String(data[i][6]).trim();
+    const notificado  = String(data[i][10]).trim().toUpperCase(); 
+    const fechaUltimaRaw = data[i][11]; 
+    const baja        = String(data[i][12]).trim().toUpperCase(); 
+
+    if (baja === "SI") continue; // Si está de baja, el robot ni lo mira
+
+    // ==============================================================
+    // 🤖 MOTOR DE AUTOMATIZACIÓN DE ESTADOS (CITA ALCANZADA)
+    // ==============================================================
+    if (estado === "PENDIENTE DE CITA" && detalle.toUpperCase().startsWith("CITA PROGRAMADA")) {
+      let fechaCita = extraerFechaDeDetalle(detalle);
+      
+      if (fechaCita) {
+        let fechaCitaLimpia = new Date(fechaCita.getFullYear(), fechaCita.getMonth(), fechaCita.getDate());
+        
+        // Si el día de la cita es HOY o ya pasó...
+        if (hoyLimpio >= fechaCitaLimpia) {
+          if (!modoPrueba) {
+            let fechaStr = Utilities.formatDate(fechaCita, Session.getScriptTimeZone(), "dd/MM/yyyy");
+            
+            sheet.getRange(i + 1, 6).setValue("PENDIENTE RESOLUCION"); // F: Actualiza Estado
+            sheet.getRange(i + 1, 7).setValue(`CITA ${fechaStr}`);       // G: Formatea Detalle
+            
+            // Inyectamos la leyenda visual automáticamente para el usuario (Poka-Yoke)
+            const advertencia = "\n\n⚠️ Puedes escribir otro texto, pero la automatización de este expediente no funcionará correctamente.";
+            sheet.getRange(i + 1, 7).setNote('💡 Sugerencia: CITA DD/MM/AAAA' + advertencia);
+            
+            // Limpiamos notificaciones para que el Motor de Envíos tome el relevo
+            sheet.getRange(i + 1, 11).clearContent(); // K
+            sheet.getRange(i + 1, 12).clearContent(); // L
+          }
+          citasAlcanzadasCount++;
+          actualizaciones++;
+          console.log(`[FILA ${i+1}] | ID: ${id || 'N/A'} - 🤖 Cita alcanzada. Auto-actualizado a PENDIENTE RESOLUCION.`);
+          continue; // Como ya lo procesamos, saltamos a la siguiente fila
+        }
+      }
+    }
+    // ==============================================================
+
+    const estadosTerminales = ["RESUELTO FAVORABLE", "RESUELTO DENEGADO", "RESUELTO", "NO PRESENTADO", "RECURSO FAVORABLE", "RECURSO DENEGADO"];
+    const esEstadoFinal = estadosTerminales.includes(estado);
+
+    // Si ya está marcado explícitamente como "NO", ya está en cola de envíos
+    if (notificado === "NO") continue;
+
+    // --- AUDITORÍA DE TIEMPOS DE ESPERA Y ESTADOS SIN NOTIFICAR ---
+    let fechaUltima = (fechaUltimaRaw && fechaUltimaRaw instanceof Date) ? fechaUltimaRaw : null;
+    let diasTranscurridos = fechaUltima ? Math.floor((hoy - fechaUltima) / (1000 * 60 * 60 * 24)) : 9999;
+    let necesitaEnvio = false;
+
+    // A) Estados Finales / Terminales que aún no han sido notificados (notificado !== "SI")
+    if (esEstadoFinal) {
+      if (notificado !== "SI") {
+        necesitaEnvio = true;
+      }
+    }
+    // B) Trámites en proceso (Citas y Credenciales)
+    else if (estado === "PENDIENTE DE CITA" || estado === "PENDIENTE DE CREDENCIALES") {
+      if (notificado !== "SI" || diasTranscurridos >= cicloTramites) necesitaEnvio = true;
+    } 
+    // C) Recursos
+    else if (estado === "RECURSO PRESENTADO") {
+      if (notificado !== "SI" || diasTranscurridos >= cicloSeguimiento) necesitaEnvio = true;
+    }
+    // D) Pendiente de Resolución con verificación de carencia legal
+    else if (estado === "PENDIENTE RESOLUCION") {
+      let fechaCita = extraerFechaDeDetalle(detalle);
+      let carenciaSuperada = true; 
+      
+      if (fechaCita) {
+        let diasDesdeCita = Math.floor((hoy - fechaCita) / (1000 * 60 * 60 * 24));
+        if (diasDesdeCita < carenciaResolucion) carenciaSuperada = false;
+      }
+      if (carenciaSuperada && (notificado !== "SI" || diasTranscurridos >= cicloSeguimiento)) {
+        necesitaEnvio = true;
+      }
+    }
+    // ==============================================================
+    // 🛡️ SALVEDAD BLINDADA: RESUELTO INTERMEDIO LA HABANA
+    // Solo si: 1) Estado es RESUELTO, 2) Consulado es LA HABANA,
+    // y 3) Existe registro OK con fechaResolucion verificada por API en VERIFICACION_CONSULAR
+    // ==============================================================
+    else if (estado === "RESUELTO" && consulado.includes("HABANA")) {
+      const datosVerificados = mapaVerificacion[id];
+      if (datosVerificados && datosVerificados.ok && datosVerificados.fechaResolucion) {
+        if (notificado !== "SI" || diasTranscurridos >= cicloSeguimiento) {
+          necesitaEnvio = true;
+        }
+      }
+    }
+
+    if (necesitaEnvio) {
+      if (!modoPrueba) {
+        sheet.getRange(i + 1, 11).setValue("NO");
+      }
+      notificacionesLiberadasCount++;
+      actualizaciones++;
+      console.log(`[FILA ${i+1}] | ID: ${id || 'N/A'} - Estado calificado (${estado}). Marcado para envío ("NO").`);
+    }
+  }
+  
+  if (!pausado) {
+    console.log(`✅ Auditoría completada al 100%. Total de acciones: ${actualizaciones}. Limpiando memoria.`);
+    
+    props.deleteProperty('LAST_ROW_NOCTURNO');
+    props.deleteProperty('ACUMULADO_NOCTURNO');
+    const oldTriggerId = props.getProperty('TEMP_TRIGGER_NOCTURNO');
+    if (oldTriggerId) {
+      ScriptApp.getProjectTriggers().forEach(t => {
+        if (t.getUniqueId() === oldTriggerId) ScriptApp.deleteTrigger(t);
+      });
+      props.deleteProperty('TEMP_TRIGGER_NOCTURNO');
+    }
+  }
+
+  return {
+    ok: true,
+    tipo: 'auditoria',
+    prueba: modoPrueba,
+    evaluados: data.length > 1 ? data.length - 1 : 0,
+    citasAlcanzadas: citasAlcanzadasCount,
+    notificacionesLiberadas: notificacionesLiberadasCount,
+    procesados: actualizaciones,
+    pausado: pausado
+  };
+}
+
+/**
+ * Pre-construye un mapa rápido en memoria de la hoja VERIFICACION_CONSULAR.
+ * Permite al Trabajador Nocturno realizar la Triple Verificación en O(1)ms.
+ */
+function _tn_construirMapaVerificacion(ss) {
+  const mapa = {};
+  const sheetVerif = ss.getSheetByName("VERIFICACION_CONSULAR");
+  if (!sheetVerif) return mapa;
+
+  const lastRow = sheetVerif.getLastRow();
+  if (lastRow < 2) return mapa;
+
+  const data = sheetVerif.getRange(2, 1, lastRow - 1, 13).getValues();
+  data.forEach(row => {
+    const id          = String(row[3] || '').trim(); // Col D: Identificador
+    const fResolucion = String(row[8] || '').trim(); // Col I: Fecha Resolución
+    const fInscripcion= String(row[9] || '').trim(); // Col J: Fecha Inscripción
+    const datosReg    = String(row[10] || '').trim();// Col K: Datos Registrales
+    const resultado   = String(row[11] || '').trim();// Col L: Resultado (OK)
+
+    if (id) {
+      mapa[id] = {
+        ok: (resultado === "OK"),
+        fechaResolucion: fResolucion,
+        fechaInscripcion: fInscripcion,
+        datosRegistrales: datosReg
+      };
+    }
+  });
+
+  return mapa;
+}

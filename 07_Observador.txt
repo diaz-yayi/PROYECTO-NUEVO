@@ -1,0 +1,128 @@
+// ==========================================
+// MÓDULO 07: OBSERVADOR AUTOMÁTICO (ONEDIT)
+// ==========================================
+
+function onEdit(e) {
+  if (!e || !e.range) return;
+  
+  const sheet = e.range.getSheet();
+  if (sheet.getName() !== SHEET_NAME) return;
+
+  const colInicio = e.range.getColumn();
+  const colFin = colInicio + e.range.getWidth() - 1;
+  const filaInicio = e.range.getRow();
+  const filaFin = filaInicio + e.range.getHeight() - 1;
+
+  // 1. Limpieza de notificaciones (Tu lógica actual intacta)
+  if (colInicio <= 6 && colFin >= 6) {
+    for (let i = filaInicio; i <= filaFin; i++) {
+      if (i > 1) {
+        sheet.getRange(i, 11).clearContent();
+        sheet.getRange(i, 12).clearContent();
+      }
+    }
+  }
+
+  // Intervenciones de Celda Individual (Caja Negra, Termómetro y Leyendas)
+  if (colInicio === 6 && colFin === 6 && filaInicio === filaFin && filaInicio > 1) {
+    const estadoViejo = e.oldValue ? String(e.oldValue).trim().toUpperCase() : "VACÍO";
+    const estadoNuevo = e.value ? String(e.value).trim().toUpperCase() : "VACÍO";
+
+    // Si realmente hubo un cambio de estado
+    if (estadoViejo !== estadoNuevo) {
+      const consulado = String(sheet.getRange(filaInicio, 3).getValue()).trim().toUpperCase();
+      const detalleReal = String(sheet.getRange(filaInicio, 7).getValue()).trim();
+      const idExp = String(sheet.getRange(filaInicio, 9).getValue()).trim();
+
+      // ==============================================================
+      // 🕵️‍♂️ LA CAJA NEGRA: Registro de Auditoría (Audit Trail)
+      // ==============================================================
+      const contextoTexto = detalleReal ? detalleReal : "Sin detalles previos";
+      registrarLog(
+        idExp, 
+        "Vigía del Sistema", 
+        "N/A", 
+        "Cambio de Estado", 
+        `Transición: De [${estadoViejo}] a [${estadoNuevo}]. Contexto previo: "${contextoTexto}"`
+      );
+
+      // ==============================================================
+      // 📊 TERMÓMETRO CONSULAR: Validación Cronológica de Avance
+      // ==============================================================
+      if (estadoViejo === "PENDIENTE DE CREDENCIALES") {
+        const fechaExtraida = extraerFechaDeDetalle(detalleReal);
+        
+        if (fechaExtraida) {
+          const props = PropertiesService.getDocumentProperties();
+          const fechaStr = Utilities.formatDate(fechaExtraida, Session.getScriptTimeZone(), "dd/MM/yyyy");
+          
+          let llaveBoveda = "";
+          let nombreCiudad = "";
+
+          if (consulado.includes("HABANA")) { 
+            llaveBoveda = 'TERMOMETRO_HABANA'; 
+            nombreCiudad = "La Habana"; 
+          }
+          else if (consulado.includes("MIAMI")) { 
+            llaveBoveda = 'TERMOMETRO_MIAMI'; 
+            nombreCiudad = "Miami"; 
+          }
+
+          if (llaveBoveda !== "") {
+            let debeActualizar = false;
+            const fechaGuardadaStr = props.getProperty(llaveBoveda);
+            const estadoAnteriorTermometro = fechaGuardadaStr ? fechaGuardadaStr : "Vacío/Sin registro";
+            
+            if (!fechaGuardadaStr) {
+              debeActualizar = true; // Si la bóveda está vacía, actualiza siempre
+            } else {
+              // Comparamos las fechas matemáticamente para evitar regresiones
+              const partes = fechaGuardadaStr.split("/");
+              if (partes.length === 3) {
+                const fechaGuardada = new Date(partes[2], partes[1] - 1, partes[0]);
+                const nuevaLimpia = new Date(fechaExtraida.getFullYear(), fechaExtraida.getMonth(), fechaExtraida.getDate());
+                const guardadaLimpia = new Date(fechaGuardada.getFullYear(), fechaGuardada.getMonth(), fechaGuardada.getDate());
+                
+                if (nuevaLimpia > guardadaLimpia) {
+                  debeActualizar = true; // Solo si la nueva fecha es ESTRICTAMENTE MAYOR avanza el termómetro
+                }
+              } else {
+                debeActualizar = true; // Si el formato guardado estaba corrupto, lo sobrescribe
+              }
+            }
+
+            if (debeActualizar) {
+              props.setProperty(llaveBoveda, fechaStr);
+              // Dejamos huella en los Logs con el salto temporal exacto
+              registrarLog(
+                idExp, 
+                "Vigía del Sistema", 
+                "N/A", 
+                `Actualización Termómetro (${nombreCiudad})`, 
+                `Avance registrado: Pasó de [${estadoAnteriorTermometro}] a [${fechaStr}]. (Dato extraído al cambiar estado)`
+              );
+            }
+          }
+        }
+      }
+    }
+
+    // ==============================================================
+    // 💡 INTERFAZ POKA-YOKE: Gestor de Leyendas Dinámicas
+    // ==============================================================
+    const celdaDetalle = sheet.getRange(filaInicio, 7); // Columna G (Detalle)
+    const advertencia = "\n\n⚠️ Puedes escribir otro texto, pero la automatización de este expediente no funcionará correctamente.";
+
+    if (estadoNuevo === "PENDIENTE DE CREDENCIALES") {
+      celdaDetalle.setNote('💡 Sugerencia: SOLICITADAS DD/MM/AAAA' + advertencia);
+    } else if (estadoNuevo === "PENDIENTE DE CITA") {
+      celdaDetalle.setNote('💡 Sugerencia: CITA PROGRAMADA DD/MM/AAAA' + advertencia);
+    } else if (estadoNuevo === "PENDIENTE RESOLUCION") {
+      celdaDetalle.setNote('💡 Sugerencia: CITA DD/MM/AAAA' + advertencia);
+    } else if (estadoNuevo === "RECURSO PRESENTADO") {
+      celdaDetalle.setNote('💡 Sugerencia: RECURSO PRESENTADO DD/MM/AAAA' + advertencia);
+    } else {
+      celdaDetalle.clearNote(); // Limpiar notas para estados finales (Resuelto, Denegado, etc.)
+    }
+  }
+}

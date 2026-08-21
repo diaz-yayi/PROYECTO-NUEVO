@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; padding: 0; font-family: Arial, sans-serif; overflow: hidden; }
+    
+    /* Layout principal Flexbox para footer fijo */
+    .app-container { display: flex; flex-direction: column; height: 100vh; position: relative; transition: background-color 0.3s; }
+    
+    /* Velo de Carga */
+    .overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(255, 255, 255, 0.95);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 999; transition: opacity 0.3s ease;
+    }
+    .spinner {
+      width: 45px; height: 45px; border: 4px solid #e0e0e0;
+      border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 12px;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .overlay-text { font-size: 14px; font-weight: bold; color: #555; }
+
+    /* Cabecera */
+    .header { text-align: center; padding: 20px 0; background: #000; border-bottom: 4px solid; flex-shrink: 0; }
+    .header img { max-width: 120px; }
+    
+    /* Contenido con scroll */
+    .form-content { flex: 1; overflow-y: auto; padding: 25px 20px; }
+    
+    h2 { font-size: 18px; margin-top: 0; margin-bottom: 20px; text-align: center; }
+    
+    .card-consulado {
+      background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 15px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; align-items: center; border-left: 5px solid;
+    }
+    .bandera { font-size: 30px; margin-right: 15px; }
+    .info { flex: 1; }
+    .info h3 { margin: 0 0 5px 0; font-size: 15px; }
+    .fecha { font-size: 18px; font-weight: bold; }
+    .subtexto { font-size: 12px; color: #777; margin-top: 5px; line-height: 1.3; }
+
+    /* Pie de página fijo */
+    .footer-fixed {
+      background: #ffffff; padding: 15px 20px; border-top: 1px solid #e0e0e0;
+      box-shadow: 0 -2px 8px rgba(0,0,0,0.05); text-align: center; flex-shrink: 0;
+    }
+
+    .btn {
+      background: #000000; color: #fff; border: none; padding: 12px 20px;
+      width: 100%; font-size: 15px; font-weight: bold; border-radius: 4px;
+      cursor: pointer; transition: all 0.3s ease;
+    }
+    .btn:hover { background: #333333; }
+  </style>
+</head>
+<body>
+
+  <div class="app-container" id="app-bg">
+    
+    <div id="loading-overlay" class="overlay">
+      <div class="spinner" id="spinner-color"></div>
+      <div class="overlay-text">Extrayendo datos de inteligencia...</div>
+    </div>
+
+    <div class="header" id="header-border">
+      <img id="logo-img" src="" alt="Logo">
+    </div>
+
+    <div class="form-content">
+      <h2 id="main-title">Últimas Credenciales Procesadas</h2>
+
+      <div class="card-consulado" id="card-habana">
+        <div class="bandera">🇨🇺</div>
+        <div class="info">
+          <h3>Consulado de La Habana</h3>
+          <div class="fecha" id="fecha-habana">--</div>
+          <div class="subtexto">Fecha de solicitud extraída del último caso procesado por el equipo.</div>
+        </div>
+      </div>
+
+      <div class="card-consulado" id="card-miami">
+        <div class="bandera">🇺🇸</div>
+        <div class="info">
+          <h3>Consulado de Miami</h3>
+          <div class="fecha" id="fecha-miami">--</div>
+          <div class="subtexto">Fecha de solicitud extraída del último caso procesado por el equipo.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-fixed">
+      <button class="btn" id="btn-color" onclick="google.script.host.close()">Cerrar Panel</button>
+    </div>
+
+  </div>
+
+  <script>
+    google.script.run.withSuccessHandler(renderDashboard).obtenerDatosTermometro();
+
+    function renderDashboard(datos) {
+      document.getElementById("app-bg").style.backgroundColor = datos.fondo;
+      document.getElementById("main-title").style.color = datos.texto;
+      document.getElementById("header-border").style.borderBottomColor = datos.oro;
+      document.getElementById("btn-color").style.color = datos.oro;
+      document.getElementById("spinner-color").style.borderTopColor = datos.oro;
+      document.getElementById("card-habana").style.borderLeftColor = datos.oro;
+      document.getElementById("card-miami").style.borderLeftColor = datos.oro;
+      
+      if (datos.logo) {
+        document.getElementById("logo-img").src = datos.logo;
+      } else {
+        document.getElementById("logo-img").style.display = 'none';
+      }
+
+      document.getElementById("fecha-habana").innerText = datos.habana;
+      document.getElementById("fecha-habana").style.color = datos.oro;
+
+      document.getElementById("fecha-miami").innerText = datos.miami;
+      document.getElementById("fecha-miami").style.color = datos.oro;
+
+      const overlay = document.getElementById("loading-overlay");
+      overlay.style.opacity = "0";
+      setTimeout(() => { overlay.style.display = "none"; }, 300);
+    }
+  </script>
+</body>
+</html>
