@@ -191,8 +191,7 @@ async function guardarConfiguracionFormulario(e) {
 
   const btn = document.getElementById('btn-guardar-config');
   if (btn) {
-    btn.disabled = true;
-    btn.innerText = '💾 Guardando en Sheets...';
+    setBotonCargando(btn, true, 'Guardando en Sheets...');
   }
 
   const esPruebaChecked = document.getElementById('cfg-modo-prueba').checked;
@@ -223,7 +222,7 @@ async function guardarConfiguracionFormulario(e) {
     Toast.error('Excepción: ' + err.message);
   } finally {
     if (btn) {
-      btn.innerText = '💾 Guardar Configuración en Google Sheets';
+      setBotonCargando(btn, false, undefined, '💾 Guardar Configuración en Google Sheets');
       evaluarDirtyConfig();
     }
   }
@@ -406,8 +405,7 @@ async function guardarUsuarioModal(e) {
 
   const btnSubmit = document.getElementById('btn-guardar-usuario');
   if (btnSubmit) {
-    btnSubmit.disabled = true;
-    btnSubmit.innerHTML = '<span class="spinner-icon"></span> Guardando...';
+    setBotonCargando(btnSubmit, true, 'Guardando...');
   }
 
   try {
@@ -432,8 +430,7 @@ async function guardarUsuarioModal(e) {
     Toast.error('Excepción: ' + err.message);
   } finally {
     if (btnSubmit) {
-      btnSubmit.disabled = false;
-      btnSubmit.innerText = 'Guardar Usuario';
+      setBotonCargando(btnSubmit, false, undefined, 'Guardar Usuario');
       evaluarDirtyUsuario();
     }
   }

@@ -416,8 +416,7 @@ async function guardarExpedienteFormulario(e) {
 
   const btnGuardar = document.getElementById('btn-guardar-exp');
   if (btnGuardar) {
-    btnGuardar.disabled = true;
-    btnGuardar.innerText = '💾 Guardando en Workspace...';
+    setBotonCargando(btnGuardar, true, 'Guardando en Workspace...');
   }
 
   state.operacionEnProgreso = true;
@@ -462,8 +461,7 @@ async function guardarExpedienteFormulario(e) {
   } finally {
     state.operacionEnProgreso = false;
     if (btnGuardar) {
-      btnGuardar.disabled = false;
-      btnGuardar.innerText = '💾 Guardar en Workspace';
+      setBotonCargando(btnGuardar, false, undefined, '💾 Guardar en Workspace');
       evaluarDirtyExpediente();
     }
   }

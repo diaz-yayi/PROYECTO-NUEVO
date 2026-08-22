@@ -28,9 +28,7 @@ const LoginView = {
     }
 
     if (btnSubmit) {
-      btnSubmit.disabled = true;
-      btnSubmit.dataset.defaultHtml = btnSubmit.innerHTML;
-      btnSubmit.innerHTML = '<span class="spinner-icon"></span> Verificando credenciales...';
+      setBotonCargando(btnSubmit, true, 'Verificando credenciales...');
     }
 
     if (typeof mostrarSplashLoader === 'function') {
@@ -75,8 +73,7 @@ const LoginView = {
       Toast.error('Error de conexión con el servidor de autenticación.');
     } finally {
       if (btnSubmit) {
-        btnSubmit.disabled = false;
-        btnSubmit.innerHTML = btnSubmit.dataset.defaultHtml || '<span>Ingresar al Portal Seguro</span> ➔';
+        setBotonCargando(btnSubmit, false);
       }
     }
   }

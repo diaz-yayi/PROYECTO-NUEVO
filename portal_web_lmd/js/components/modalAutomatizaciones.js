@@ -133,8 +133,7 @@ async function guardarCitasFormulario(e) {
 
   const btnGuardar = document.getElementById('btn-guardar-citas');
   if (btnGuardar) {
-    btnGuardar.disabled = true;
-    btnGuardar.innerText = '💾 Guardando Citas...';
+    setBotonCargando(btnGuardar, true, 'Guardando Citas...');
   }
 
   state.operacionEnProgreso = true;
@@ -187,8 +186,7 @@ async function guardarCitasFormulario(e) {
   } finally {
     state.operacionEnProgreso = false;
     if (btnGuardar) {
-      btnGuardar.disabled = false;
-      btnGuardar.innerText = '💾 Guardar Preferencias';
+      setBotonCargando(btnGuardar, false, undefined, '💾 Guardar Preferencias');
       evaluarDirtyCitas();
     }
   }

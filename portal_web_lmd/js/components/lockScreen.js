@@ -98,8 +98,7 @@ const LockScreen = {
     }
 
     if (btnUnlock) {
-      btnUnlock.disabled = true;
-      btnUnlock.innerHTML = '<span class="spinner-icon"></span> Validando...';
+      setBotonCargando(btnUnlock, true, 'Validando...');
     }
 
     try {
@@ -131,8 +130,7 @@ const LockScreen = {
       Toast.error('Error al conectar con el servidor.');
     } finally {
       if (btnUnlock) {
-        btnUnlock.disabled = false;
-        btnUnlock.innerHTML = 'Desbloquear Sesión';
+        setBotonCargando(btnUnlock, false, undefined, 'Desbloquear Sesión');
       }
     }
   },
