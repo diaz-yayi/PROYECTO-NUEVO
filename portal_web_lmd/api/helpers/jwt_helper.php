@@ -122,6 +122,30 @@ class JWTHelper {
     }
 
     /**
+     * Genera un valor aleatorio para el patrón CSRF de doble envío.
+     * Se embebe firmado dentro del propio JWT (cookie httpOnly, JS no
+     * lo puede leer ahí) y se devuelve también en el body de login.php
+     * (JS sí puede leerlo ahí) para que el frontend lo reenvíe como
+     * cabecera X-CSRF-Token en cada petición que modifica estado.
+     * Una petición forjada desde otro sitio no puede leer ese valor
+     * del body de login ni adjuntar cabeceras personalizadas, así que
+     * nunca podría hacer coincidir ambos lados.
+     */
+    public static function generarCsrfToken(): string {
+        return bin2hex(random_bytes(32));
+    }
+
+    /**
+     * Compara el valor CSRF embebido en el JWT contra la cabecera
+     * X-CSRF-Token recibida. Solo aplica a peticiones que cambian estado.
+     */
+    public static function verificarCsrf(array $payload): bool {
+        $esperado = $payload['csrf'] ?? '';
+        $recibido = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+        return !empty($esperado) && !empty($recibido) && hash_equals($esperado, $recibido);
+    }
+
+    /**
      * Extraer token de la cabecera Authorization (Bearer <token>)
      */
     public static function getBearerToken(): ?string {

@@ -8,10 +8,17 @@ const API = {
   getHeaders() {
     // La sesión viaja en una cookie httpOnly gestionada automáticamente
     // por el navegador (ver credentials: 'same-origin' en request()) —
-    // ya no se adjunta ningún token manualmente desde JavaScript.
-    return {
+    // ya no se adjunta ningún token de sesión manualmente desde JS.
+    // El valor CSRF sí es legible por JS a propósito (se entregó en el
+    // body de login.php) — es la mitad "de doble envío" del patrón CSRF.
+    const headers = {
       'Content-Type': 'application/json'
     };
+    const csrfToken = localStorage.getItem('lmd_csrf_token');
+    if (csrfToken) {
+      headers['X-CSRF-Token'] = csrfToken;
+    }
+    return headers;
   },
 
   async request(endpoint, options = {}) {
@@ -233,6 +240,9 @@ const API = {
       // para que la UI (pantalla de login vs app, bloqueo por inactividad)
       // sepa qué mostrar sin poder leer nunca la cookie real.
       localStorage.setItem('sesion_lmd_activa', 'true');
+      if (res.csrfToken) {
+        localStorage.setItem('lmd_csrf_token', res.csrfToken);
+      }
       if (res.user) {
         localStorage.setItem('lmd_user_profile', JSON.stringify(res.user));
         state.usuarioActual = res.user;
@@ -251,6 +261,7 @@ const API = {
     } catch (e) {}
     localStorage.removeItem('sesion_lmd_activa');
     localStorage.removeItem('lmd_user_profile');
+    localStorage.removeItem('lmd_csrf_token');
     state.usuarioActual = null;
     state.sesionActiva = false;
     Router.navigateToHash('#/login');

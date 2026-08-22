@@ -28,6 +28,20 @@ function requireAuth(): array {
         exit;
     }
 
+    // Protección CSRF: solo aplica cuando la sesión viaja por cookie (el
+    // vector CSRF depende de que el navegador adjunte credenciales solo
+    // automáticamente; un consumidor que use la cabecera Authorization
+    // ya la adjunta de forma explícita y no está expuesto a ese vector).
+    $sesionViaCookie = !empty($_COOKIE[JWTHelper::COOKIE_NAME]);
+    if ($sesionViaCookie && $_SERVER['REQUEST_METHOD'] === 'POST' && !JWTHelper::verificarCsrf($userData)) {
+        http_response_code(403);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Token de seguridad (CSRF) inválido o ausente. Recarga la página e inténtalo de nuevo.'
+        ]);
+        exit;
+    }
+
     return $userData;
 }
 

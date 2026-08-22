@@ -144,6 +144,7 @@ const LockScreen = {
     }
     localStorage.removeItem('sesion_lmd_activa');
     localStorage.removeItem('lmd_ultima_actividad');
+    localStorage.removeItem('lmd_csrf_token');
 
     const modal = document.getElementById('modal-lock-screen');
     if (modal) modal.classList.remove('active');

@@ -9,8 +9,17 @@
  */
 $origenesPermitidos = [
     'https://app.lmd2022.com',
-    'http://localhost:6080',
 ];
+
+// El origen de desarrollo local solo se admite cuando la petición en sí
+// llega por HTTP (nunca en producción, que siempre es HTTPS) — así este
+// mismo archivo desplegado sirve para ambos entornos sin dejar un origen
+// de desarrollo expuesto de forma permanente en producción.
+$esHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+if (!$esHttps) {
+    $origenesPermitidos[] = 'http://localhost:6080';
+}
 
 $origenSolicitante = $_SERVER['HTTP_ORIGIN'] ?? '';
 if (in_array($origenSolicitante, $origenesPermitidos, true)) {
