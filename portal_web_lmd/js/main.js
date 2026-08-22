@@ -344,6 +344,7 @@ function vincularEventosGlobales() {
 
 document.addEventListener('DOMContentLoaded', () => {
   if (typeof ConfirmModal !== 'undefined') ConfirmModal.init();
+  if (typeof ModalManager !== 'undefined') ModalManager.init();
   inicializarAuth();
   Router.init();
   vincularEventosGlobales();

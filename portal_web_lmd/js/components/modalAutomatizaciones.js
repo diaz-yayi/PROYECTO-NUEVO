@@ -761,7 +761,7 @@ async function consultarHabanaIndividualDesdeUI() {
     return;
   }
 
-  if (btn) btn.disabled = true;
+  if (btn) setBotonCargando(btn, true, 'Consultando...');
   resContenedor.style.display = 'block';
   resBadge.className = 'badge badge-estado-cita';
   resBadge.innerText = 'CONSULTANDO...';
@@ -838,7 +838,7 @@ async function consultarHabanaIndividualDesdeUI() {
     resTexto.innerHTML = `<span style="color: var(--accent-red);">Excepción: ${err.message}</span>`;
   } finally {
     state.operacionEnProgreso = false;
-    if (btn) btn.disabled = false;
+    if (btn) setBotonCargando(btn, false, undefined, '🔍 Consultar en Directo');
   }
 }
 
