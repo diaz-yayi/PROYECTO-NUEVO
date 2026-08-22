@@ -40,7 +40,7 @@ const LoginView = {
     try {
       const res = await API.login(email, password);
 
-      if (res.success && res.token) {
+      if (res.success) {
         state.usuarioActual = res.user || { email, rol: 'admin', nombre: 'Usuario EM' };
         state.sesionActiva = true;
         localStorage.setItem('lmd_ultimo_acceso_ts', Date.now().toString());

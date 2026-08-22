@@ -79,7 +79,7 @@ const Router = {
     }
 
     // 2. Si ya está autenticado e intenta ir a #/login, redirigir al Dashboard
-    if (hash === '#/login' && (token || sesionActiva)) {
+    if (hash === '#/login' && sesionActiva) {
       window.location.hash = '#/dashboard';
       return;
     }

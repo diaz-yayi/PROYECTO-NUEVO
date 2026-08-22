@@ -106,7 +106,7 @@ const LockScreen = {
       const email = (state.usuarioActual && state.usuarioActual.email) || 'admin@estelamarina.com';
       const res = await API.login(email, password);
 
-      if (res.success && res.token) {
+      if (res.success) {
         this.bloqueado = false;
         this.registrarInteraccion();
 
