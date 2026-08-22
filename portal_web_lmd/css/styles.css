@@ -924,7 +924,6 @@ body {
   cursor: not-allowed !important;
   transform: none !important;
   box-shadow: none !important;
-  pointer-events: auto;
 }
 
 .btn-secondary {
