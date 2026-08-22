@@ -40,7 +40,7 @@ $userData = null;
 
 if ($pdo) {
     try {
-        $stmt = $pdo->prepare("SELECT id, email, nombre, password_hash, rol, estado, intentos_fallidos, bloqueado_hasta FROM usuarios_sistema WHERE email = :e LIMIT 1");
+        $stmt = $pdo->prepare("SELECT id, email, nombre, password_hash, rol, estado, intentos_fallidos, bloqueado_hasta FROM usuarios_sistema WHERE email = :e AND eliminado_en IS NULL LIMIT 1");
         $stmt->execute([':e' => $email]);
         $row = $stmt->fetch();
 

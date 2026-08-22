@@ -19,9 +19,11 @@ CREATE TABLE IF NOT EXISTS `usuarios_sistema` (
     `ultimo_acceso` DATETIME NULL,
     `creado_en` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `actualizado_en` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `eliminado_en` DATETIME NULL COMMENT 'Baja lógica: NULL = activo, con fecha = eliminado',
     INDEX `idx_usuario_email` (`email`),
     INDEX `idx_usuario_rol` (`rol`),
-    INDEX `idx_usuario_estado` (`estado`)
+    INDEX `idx_usuario_estado` (`estado`),
+    INDEX `idx_usuario_eliminado` (`eliminado_en`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 2. Tabla de Auditoría y Bitácora de Seguridad

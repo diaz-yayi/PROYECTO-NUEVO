@@ -48,7 +48,7 @@ if (!$pdo) {
 }
 
 try {
-    $stmtCheck = $pdo->prepare("SELECT id, email, rol, estado FROM usuarios_sistema WHERE id = :id LIMIT 1");
+    $stmtCheck = $pdo->prepare("SELECT id, email, rol, estado FROM usuarios_sistema WHERE id = :id AND eliminado_en IS NULL LIMIT 1");
     $stmtCheck->execute([':id' => $userId]);
     $existing = $stmtCheck->fetch();
 
@@ -118,6 +118,7 @@ try {
         'message' => 'Usuario actualizado correctamente.'
     ]);
 } catch (Exception $e) {
+    error_log("[USERS UPDATE ERROR] " . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al actualizar usuario: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al actualizar usuario.']);
 }

@@ -111,6 +111,7 @@ try {
         ]
     ]);
 } catch (Exception $e) {
+    error_log("[USERS CREATE ERROR] " . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al crear usuario: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al crear usuario.']);
 }

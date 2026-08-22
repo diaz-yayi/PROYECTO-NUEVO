@@ -50,7 +50,17 @@ if (!$pdo) {
 }
 
 try {
-    $stmtDel = $pdo->prepare("DELETE FROM usuarios_sistema WHERE id = :id");
+    $stmtCheck = $pdo->prepare("SELECT id FROM usuarios_sistema WHERE id = :id AND eliminado_en IS NULL LIMIT 1");
+    $stmtCheck->execute([':id' => $userId]);
+    if (!$stmtCheck->fetch()) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Usuario no encontrado o ya estaba eliminado.']);
+        exit;
+    }
+
+    // Baja lógica: se conserva la fila (y su rastro de auditoría), solo se
+    // marca como eliminada y se desactiva para que no pueda iniciar sesión.
+    $stmtDel = $pdo->prepare("UPDATE usuarios_sistema SET eliminado_en = NOW(), estado = 'inactivo' WHERE id = :id");
     $stmtDel->execute([':id' => $userId]);
 
     // Log de auditoría
@@ -59,7 +69,7 @@ try {
         ':uid' => $adminUser['id'] ?? null,
         ':em' => $adminUser['email'] ?? 'admin',
         ':ip' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
-        ':det' => "Usuario ID $userId eliminado por " . ($adminUser['email'] ?? 'admin')
+        ':det' => "Usuario ID $userId dado de baja (borrado lógico) por " . ($adminUser['email'] ?? 'admin')
     ]);
 
     echo json_encode([
@@ -67,6 +77,7 @@ try {
         'message' => 'Usuario eliminado correctamente del sistema.'
     ]);
 } catch (Exception $e) {
+    error_log("[USERS DELETE ERROR] " . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al eliminar usuario: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al eliminar usuario.']);
 }

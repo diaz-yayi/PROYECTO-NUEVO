@@ -32,7 +32,7 @@ if (!$pdo) {
 }
 
 try {
-    $stmt = $pdo->query("SELECT id, email, nombre, rol, estado, ultimo_acceso, creado_en FROM usuarios_sistema ORDER BY creado_en DESC");
+    $stmt = $pdo->query("SELECT id, email, nombre, rol, estado, ultimo_acceso, creado_en FROM usuarios_sistema WHERE eliminado_en IS NULL ORDER BY creado_en DESC");
     $users = $stmt->fetchAll();
 
     echo json_encode([

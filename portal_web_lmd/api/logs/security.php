@@ -32,21 +32,9 @@ if (!$pdo) {
 }
 
 try {
-    // 1. Asegurar que la tabla exista en MySQL
-    $pdo->exec("CREATE TABLE IF NOT EXISTS `logs_seguridad` (
-        `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
-        `usuario_id` INT NULL,
-        `email` VARCHAR(191) NULL,
-        `evento` VARCHAR(100) NOT NULL,
-        `detalles` TEXT NULL,
-        `ip_origen` VARCHAR(45) NOT NULL,
-        `user_agent` VARCHAR(255) NULL,
-        `fecha_hora` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX `idx_log_usuario` (`usuario_id`),
-        INDEX `idx_log_evento` (`evento`),
-        INDEX `idx_log_fecha` (`fecha_hora`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-
+    // El esquema (incluida logs_seguridad) lo crea db/schema.sql al
+    // aprovisionar la base de datos — no hace falta re-crearlo aquí en
+    // cada petición.
     $limite = isset($_GET['limit']) ? min(500, max(10, intval($_GET['limit']))) : 200;
     
     $query = "SELECT l.id, l.usuario_id, COALESCE(u.nombre, 'Sistema / Externo') AS nombre, 
